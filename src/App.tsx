@@ -1,0 +1,326 @@
+import React, { useState, useEffect } from 'react';
+import Header from './components/Header';
+import CityGrid from './components/CityGrid';
+import DriverCard from './components/DriverCard';
+import ShareModal from './components/ShareModal';
+import LandingPage from './components/LandingPage';
+import AdminPanel from './components/AdminPanel';
+import { 
+  City, 
+  Driver, 
+  getCities, 
+  getDrivers, 
+  getInstagramLink, 
+  seedInitialDataIfEmpty,
+  getVehicleCategories,
+  VehicleCategory
+} from './lib/db';
+import { ArrowLeft, Car, HelpCircle, Instagram } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
+
+export default function App() {
+  // Navigation / Custom SPA routing state
+  const [currentPath, setCurrentPath] = useState(window.location.pathname);
+  
+   // Data states
+  const [cities, setCities] = useState<City[]>([]);
+  const [activeDrivers, setActiveDrivers] = useState<Driver[]>([]);
+  const [categories, setCategories] = useState<VehicleCategory[]>([]);
+  const [instagramLink, setInstagramLink] = useState('https://instagram.com/localtaxiwala');
+  const [loading, setLoading] = useState(true);
+
+  // Filter and selection states
+  const [vehicleFilter, setVehicleFilter] = useState<string>('All');
+  const [shareDriver, setShareDriver] = useState<Driver | null>(null);
+  const [cityNameForShare, setCityNameForShare] = useState('');
+
+  // 1. Setup SPA Router events
+  useEffect(() => {
+    const handlePopState = () => {
+      setCurrentPath(window.location.pathname);
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
+
+  const navigate = (path: string) => {
+    window.history.pushState({}, '', path);
+    setCurrentPath(path);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  // 2. Load Firestore Data
+  useEffect(() => {
+    const initDatabaseAndLoad = async () => {
+      setLoading(true);
+      try {
+        // Trigger seeding if database is completely empty
+        await seedInitialDataIfEmpty();
+        
+        // Load operational hubs (cities)
+        const fetchedCities = await getCities();
+        setCities(fetchedCities);
+
+        // Load vehicle categories
+        const fetchedCats = await getVehicleCategories();
+        setCategories(fetchedCats);
+
+        // Load global settings (Instagram Link)
+        const ig = await getInstagramLink();
+        setInstagramLink(ig);
+      } catch (err) {
+        console.error("Failed to fetch initial Firestore data", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    initDatabaseAndLoad();
+  }, []);
+
+  // Parse path to check if we are viewing a specific city
+  // E.g., /goa -> Goa drivers
+  const cleanedPath = currentPath.slice(1).toLowerCase().trim();
+  const activeCity = cities.find((c) => c.id === cleanedPath) || null;
+
+  // Load drivers of the active city whenever path changes
+  useEffect(() => {
+    if (activeCity) {
+      const loadCityDrivers = async () => {
+        try {
+          const fetchedDrivers = await getDrivers(activeCity.id);
+          setActiveDrivers(fetchedDrivers);
+        } catch (err) {
+          console.error("Failed to load drivers", err);
+        }
+      };
+      loadCityDrivers();
+    }
+  }, [activeCity]);
+
+  // Handle share parameters from URL search query (e.g. ?driver=xyz)
+  useEffect(() => {
+    if (activeCity && activeDrivers.length > 0) {
+      const params = new URLSearchParams(window.location.search);
+      const driverParam = params.get('driver');
+      if (driverParam) {
+        const matchedDriver = activeDrivers.find((d) => d.id === driverParam);
+        if (matchedDriver) {
+          setShareDriver(matchedDriver);
+          setCityNameForShare(activeCity.name);
+        }
+      }
+    }
+  }, [activeCity, activeDrivers]);
+
+  const handleSelectCity = (cityId: string) => {
+    setVehicleFilter('All'); // Reset category filters on change
+    navigate(`/${cityId}`);
+  };
+
+  const handleBackToCities = () => {
+    navigate('/');
+  };
+
+  const handleShareClick = async (driver: Driver) => {
+    if (activeCity) {
+      const currentUrl = window.location.origin;
+      const shareUrl = `${currentUrl}/${encodeURIComponent(activeCity.id)}?driver=${driver.id}`;
+      const shareText = `Check out this trusted local driver ${driver.name} who drives a ${driver.vehicleName} in ${activeCity.name}! Direct booking, no commission.`;
+
+      if (navigator.share) {
+        try {
+          await navigator.share({
+            title: `Local Taxi Wala - ${driver.name}`,
+            text: shareText,
+            url: shareUrl
+          });
+          return;
+        } catch (err) {
+          console.log("Native sharing was cancelled or failed. Displaying fallback modal.", err);
+        }
+      }
+
+      setShareDriver(driver);
+      setCityNameForShare(activeCity.name);
+    }
+  };
+
+  // Filter operational drivers for selected category
+  const filteredDrivers = activeDrivers.filter(
+    (driver) => vehicleFilter === 'All' || driver.vehicleType === vehicleFilter
+  );
+
+  // Check if we are on secondary administration or partner registration page
+  const isAdminView = currentPath === '/admin882';
+  const isLandingView = currentPath === '/landing-page';
+
+  // Render Admin Console Panel
+  if (isAdminView) {
+    return <AdminPanel />;
+  }
+
+  // Render Partner Registration Landing Page
+  if (isLandingView) {
+    return (
+      <div className="min-h-screen bg-slate-950 flex flex-col font-sans">
+        <Header />
+        <main className="flex-grow">
+          <LandingPage />
+        </main>
+        <footer className="bg-slate-950 text-slate-500 py-6 px-4 text-center border-t border-slate-900 font-sans text-xs">
+          <p>© 2026 Local Taxi Wala — Your trusted travel partner</p>
+        </footer>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-slate-50 flex flex-col font-sans selection:bg-amber-500/20 selection:text-slate-900">
+      
+      {/* 1. Header (Dynamic logo/call actions removed per spec) */}
+      <Header />
+
+      {/* 2. Core Operational Views */}
+      <main className="flex-grow">
+        <AnimatePresence mode="wait">
+            {!activeCity ? (
+              /* --- HOME VIEW: Destination Cities Grid --- */
+              <motion.div
+                key="home"
+                initial={{ opacity: 0, y: 15 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -15 }}
+                transition={{ duration: 0.25 }}
+              >
+                {/* Cities Grid with dynamic data and smooth bottom edges only */}
+                <CityGrid cities={cities} onSelectCity={handleSelectCity} />
+              </motion.div>
+            ) : (
+              /* --- DRIVERS LIST VIEW --- */
+              <motion.div
+                key="drivers-list"
+                initial={{ opacity: 0, scale: 0.98 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.98 }}
+                transition={{ duration: 0.3 }}
+                className="py-8 px-4 sm:px-6 max-w-5xl mx-auto"
+              >
+                {/* Back Button inside the page */}
+                <button
+                  onClick={handleBackToCities}
+                  className="inline-flex items-center gap-2 text-slate-600 hover:text-slate-900 font-bold text-sm bg-white hover:bg-slate-100 border border-slate-200/60 rounded-xl px-4 py-2.5 transition-all shadow-sm select-none cursor-pointer mb-6"
+                >
+                  <ArrowLeft className="w-4 h-4 text-amber-500" />
+                  <span>Back to Cities</span>
+                </button>
+
+                {/* Title Section (Subtitle texts removed per user specs) */}
+                <div className="mb-6">
+                  <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
+                    {activeCity.name} — Local Drivers
+                  </h2>
+                </div>
+
+                {/* Categories Row scrollable in a single horizontal line, no wraps */}
+                <div className="mb-8 overflow-x-auto whitespace-nowrap scrollbar-none flex gap-2.5 pb-3 border-b border-slate-200/50 flex-nowrap">
+                  <button
+                    onClick={() => setVehicleFilter('All')}
+                    className={`px-4 py-2 rounded-full text-xs sm:text-sm font-bold flex items-center gap-1.5 transition-all select-none cursor-pointer shadow-sm border shrink-0 ${
+                      vehicleFilter === 'All'
+                        ? 'bg-amber-500 border-amber-500 text-slate-950 shadow-md font-black'
+                        : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+                    }`}
+                  >
+                    <Car className="w-3.5 h-3.5 shrink-0" />
+                    <span>All Cars</span>
+                  </button>
+
+                  {categories.map((cat) => {
+                    const isActive = vehicleFilter === cat.name;
+                    return (
+                      <button
+                        key={cat.id}
+                        onClick={() => setVehicleFilter(cat.name)}
+                        className={`px-4 py-2 rounded-full text-xs sm:text-sm font-bold flex items-center gap-1.5 transition-all select-none cursor-pointer shadow-sm border shrink-0 ${
+                          isActive
+                            ? 'bg-amber-500 border-amber-500 text-slate-950 shadow-md font-black'
+                            : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+                        }`}
+                      >
+                        <Car className="w-3.5 h-3.5 shrink-0" />
+                        <span>{cat.name}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Drivers Cards Grid */}
+                {filteredDrivers.length > 0 ? (
+                  <motion.div 
+                    layout
+                    className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-6"
+                  >
+                    <AnimatePresence mode="popLayout">
+                      {filteredDrivers.map((driver) => (
+                        <DriverCard
+                          key={driver.id}
+                          driver={driver}
+                          cityName={activeCity.name}
+                          onShare={handleShareClick}
+                        />
+                      ))}
+                    </AnimatePresence>
+                  </motion.div>
+                ) : (
+                  <div className="py-16 text-center bg-white rounded-2xl border border-slate-100 shadow-sm max-w-md mx-auto">
+                    <HelpCircle className="w-11 h-11 text-slate-300 mx-auto mb-3" />
+                    <h4 className="font-bold text-slate-800 text-sm">No drivers match this filter</h4>
+                    <p className="text-xs text-slate-400 mt-1 max-w-xs mx-auto">
+                      Try selecting another filter above to see our active direct cab listings.
+                    </p>
+                    <button
+                      onClick={() => setVehicleFilter('All')}
+                      className="mt-4 px-4 py-2 bg-slate-900 text-white rounded-xl text-xs font-bold hover:bg-slate-800 transition-colors"
+                    >
+                      Show All Cars
+                    </button>
+                  </div>
+                )}
+              </motion.div>
+            )}
+          </AnimatePresence>
+      </main>
+
+      {/* 3. Share Modal Overlay */}
+      {shareDriver && (
+        <ShareModal
+          driver={shareDriver}
+          cityName={cityNameForShare}
+          isOpen={shareDriver !== null}
+          onClose={() => setShareDriver(null)}
+        />
+      )}
+
+      {/* 4. Instagram Floating Bar on bottom right (home page only) */}
+      {instagramLink && !activeCity && (
+        <a
+          href={instagramLink}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="fixed bottom-6 right-6 w-14 h-14 bg-gradient-to-tr from-yellow-500 via-pink-500 to-purple-600 hover:scale-110 active:scale-95 text-white rounded-full flex items-center justify-center shadow-2xl z-40 transition-all cursor-pointer group"
+          title="Follow us on Instagram"
+        >
+          <Instagram className="w-6 h-6 stroke-[2]" />
+          <span className="absolute right-16 bg-slate-900 text-white text-[10px] font-bold px-2.5 py-1.5 rounded-lg border border-slate-800 shadow-md opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none whitespace-nowrap">
+            Follow our Instagram!
+          </span>
+        </a>
+      )}
+
+      {/* 5. Clean, Minimal Footer */}
+      <footer className="bg-slate-950 text-slate-500 py-6 px-4 text-center border-t border-slate-900 font-sans text-xs">
+        <p>© 2026 Local Taxi Wala — Your trusted travel partner</p>
+      </footer>
+    </div>
+  );
+}

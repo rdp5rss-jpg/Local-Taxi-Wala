@@ -1,0 +1,6 @@
+{
+  "name": "Local Taxi Wala",
+  "description": "Book trusted local taxi drivers directly via WhatsApp across top Indian travel destinations.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
