@@ -441,13 +441,30 @@ export default function AdminPanel() {
           </div>
         </div>
 
-        <button
-          onClick={handleLogout}
-          className="px-3 py-1.5 bg-slate-800 hover:bg-rose-950 hover:text-rose-200 border border-slate-700 hover:border-rose-900 rounded-lg text-xs font-bold text-slate-300 transition-all cursor-pointer flex items-center gap-1 font-sans"
-        >
-          <LogOut className="w-3.5 h-3.5" />
-          <span>Logout</span>
-        </button>
+        <div className="flex items-center gap-2">
+          <a
+            href="/"
+            onClick={(e) => {
+              e.preventDefault();
+              if (typeof window !== 'undefined') {
+                window.history.pushState({}, '', '/');
+                window.dispatchEvent(new PopStateEvent('popstate'));
+              }
+            }}
+            className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-lg text-xs font-bold text-slate-300 transition-all cursor-pointer flex items-center gap-1.5 font-sans"
+          >
+            <ExternalLink className="w-3.5 h-3.5 text-amber-500" />
+            <span className="hidden sm:inline">View Website</span>
+          </a>
+
+          <button
+            onClick={handleLogout}
+            className="px-3 py-1.5 bg-slate-800 hover:bg-rose-950 hover:text-rose-200 border border-slate-700 hover:border-rose-900 rounded-lg text-xs font-bold text-slate-300 transition-all cursor-pointer flex items-center gap-1 font-sans"
+          >
+            <LogOut className="w-3.5 h-3.5" />
+            <span>Logout</span>
+          </button>
+        </div>
       </header>
 
       {/* Admin Workspace Content */}

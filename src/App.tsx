@@ -151,7 +151,7 @@ export default function App() {
   );
 
   // Check if we are on secondary administration or partner registration page
-  const isAdminView = currentPath === '/admin882';
+  const isAdminView = currentPath === '/admin' || currentPath === '/admin882' || currentPath.startsWith('/admin');
   const isLandingView = currentPath === '/landing-page';
 
   // Render Admin Console Panel
@@ -182,7 +182,17 @@ export default function App() {
 
       {/* 2. Core Operational Views */}
       <main className="flex-grow">
-        <AnimatePresence mode="wait">
+        {loading ? (
+          <div className="flex flex-col items-center justify-center py-32 px-4 text-slate-500 font-sans">
+            <div className="relative flex items-center justify-center mb-4">
+              <span className="text-4xl animate-bounce">🚕</span>
+              <span className="absolute -bottom-1 w-8 h-1.5 bg-slate-300 rounded-full animate-ping opacity-40"></span>
+            </div>
+            <p className="text-sm font-extrabold text-slate-800">Connecting to Local Taxi Wala Network...</p>
+            <p className="text-xs text-slate-400 mt-1">Loading destinations & direct cab listings...</p>
+          </div>
+        ) : (
+          <AnimatePresence mode="wait">
             {!activeCity ? (
               /* --- HOME VIEW: Destination Cities Grid --- */
               <motion.div
@@ -289,6 +299,7 @@ export default function App() {
               </motion.div>
             )}
           </AnimatePresence>
+        )}
       </main>
 
       {/* 3. Share Modal Overlay */}
