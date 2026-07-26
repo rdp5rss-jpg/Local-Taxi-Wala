@@ -305,6 +305,19 @@ export default function AdminPanel() {
     }
   };
 
+  // Delete Category
+  const handleDeleteCategory = async (catId: string) => {
+    setFormSubmitting(true);
+    try {
+      await deleteVehicleCategory(catId);
+      await fetchAdminData();
+    } catch (err) {
+      console.error("Failed to delete category:", err);
+    } finally {
+      setFormSubmitting(false);
+    }
+  };
+
   // Delete Driver Trigger
   const handleDeleteDriver = (driverId: string, driverName: string) => {
     setDeleteTarget({
@@ -1112,46 +1125,69 @@ export default function AdminPanel() {
           <motion.div
             initial={{ opacity: 0, scale: 0.95, y: 10 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
-            className="bg-slate-900 border border-slate-800 rounded-3xl p-6 max-w-md w-full shadow-2xl relative"
+            className="bg-slate-900 border border-slate-800 rounded-3xl p-6 max-w-md w-full shadow-2xl relative max-h-[90vh] overflow-y-auto"
           >
-            <h3 className="text-lg font-black text-white mb-2">Create New Vehicle Category</h3>
+            <h3 className="text-lg font-black text-white mb-2">Manage Vehicle Categories</h3>
             <p className="text-xs text-slate-400 mb-4 leading-relaxed">
-              Add a new operational vehicle category (e.g. Hatchback, Prime SUV, Cruiser). This category will immediately be available for listing drivers and filtering on the home page.
+              Add new vehicle categories or remove existing ones. These categories immediately update filters on the home page and listing forms.
             </p>
 
-            <form onSubmit={handleAddCategory} className="space-y-4">
+            <form onSubmit={handleAddCategory} className="space-y-4 mb-6">
               <div>
                 <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
                   Category Name
                 </label>
-                <input
-                  type="text"
-                  required
-                  placeholder="e.g. Hatchback, Luxury SUV, Cruiser"
-                  value={newCategoryName}
-                  onChange={(e) => setNewCategoryName(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-amber-500 font-sans"
-                  autoFocus
-                />
-              </div>
-
-              <div className="flex gap-3 mt-6">
-                <button
-                  type="button"
-                  onClick={() => setShowCategoryModal(false)}
-                  className="flex-1 px-4 py-2.5 bg-slate-800 hover:bg-slate-700 border border-slate-700/50 rounded-xl text-xs font-bold text-slate-300 transition-colors cursor-pointer"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={formSubmitting}
-                  className="flex-1 px-4 py-2.5 bg-amber-500 hover:bg-amber-400 disabled:bg-amber-700 text-slate-950 font-black rounded-xl text-xs transition-colors cursor-pointer flex items-center justify-center"
-                >
-                  {formSubmitting ? 'Creating...' : 'Create Category'}
-                </button>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. Hatchback, Luxury SUV, Cruiser"
+                    value={newCategoryName}
+                    onChange={(e) => setNewCategoryName(e.target.value)}
+                    className="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-4 py-2 text-sm text-white focus:outline-none focus:border-amber-500 font-sans"
+                    autoFocus
+                  />
+                  <button
+                    type="submit"
+                    disabled={formSubmitting}
+                    className="px-4 py-2 bg-amber-500 hover:bg-amber-400 disabled:bg-amber-700 text-slate-950 font-black rounded-xl text-xs transition-colors cursor-pointer shrink-0"
+                  >
+                    {formSubmitting ? 'Adding...' : 'Add'}
+                  </button>
+                </div>
               </div>
             </form>
+
+            {/* Existing Categories List */}
+            <div className="border-t border-slate-800 pt-4">
+              <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Existing Categories ({categories.length})</h4>
+              <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+                {categories.map((cat) => (
+                  <div key={cat.id} className="bg-slate-950 border border-slate-800/80 px-3 py-2 rounded-xl flex items-center justify-between">
+                    <span className="text-xs font-bold text-white">{cat.name}</span>
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteCategory(cat.id)}
+                      disabled={formSubmitting}
+                      className="p-1 text-slate-400 hover:text-rose-500 hover:bg-rose-500/10 rounded-lg transition-colors cursor-pointer"
+                      title="Delete Category"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="mt-6 pt-4 border-t border-slate-800 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setShowCategoryModal(false)}
+                className="w-full px-4 py-2.5 bg-slate-800 hover:bg-slate-700 border border-slate-700/50 rounded-xl text-xs font-bold text-slate-300 transition-colors cursor-pointer"
+              >
+                Close
+              </button>
+            </div>
           </motion.div>
         </div>
       )}

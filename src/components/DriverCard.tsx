@@ -54,7 +54,7 @@ export default function DriverCard({ driver, cityName, onShare }: DriverCardProp
       className="bg-white rounded-2xl border border-slate-100 shadow-sm hover:shadow-md overflow-hidden flex flex-col h-full"
     >
       {/* 1. Image Container with Carousel Controls */}
-      <div className="relative aspect-[16/10] sm:aspect-[16/9] w-full bg-slate-900 overflow-hidden group">
+      <div className="relative aspect-[16/9] w-full bg-slate-900 overflow-hidden group">
         
         {/* Carousel Image */}
         <AnimatePresence mode="wait">
@@ -128,38 +128,35 @@ export default function DriverCard({ driver, cityName, onShare }: DriverCardProp
       </div>
 
       {/* 2. Driver Details */}
-      <div className="p-4 flex-1 flex flex-col justify-between">
+      <div className="p-3 sm:p-3.5 flex-1 flex flex-col justify-between">
         <div>
-          <div className="flex items-start justify-between">
-            <div>
-              <h3 className="text-lg font-bold text-slate-900 tracking-tight leading-snug font-sans">
-                {driver.name}
-              </h3>
-              <p className="text-sm font-medium text-slate-500 mt-0.5 font-sans">
-                {driver.vehicleName} ({driver.vehicleType})
-              </p>
+          <div className="flex items-center justify-between gap-2 flex-wrap">
+            <h3 className="text-base font-bold text-slate-900 tracking-tight leading-snug font-sans">
+              {driver.name}
+            </h3>
+            {/* Golden Experience badge placed inline next to driver name */}
+            <div className="inline-flex items-center gap-1 px-2 py-0.5 bg-amber-50 text-amber-800 border border-amber-200/60 rounded-full text-[10px] sm:text-[11px] font-semibold font-sans shrink-0">
+              <Award className="w-3 h-3 text-amber-600 shrink-0" />
+              <span>{driver.experience} Yrs Experience</span>
             </div>
           </div>
-
-          {/* Golden Experience badge */}
-          <div className="mt-3 inline-flex items-center gap-1.5 px-3 py-1 bg-amber-50 text-amber-800 border border-amber-100 rounded-full text-xs font-semibold font-sans">
-            <Award className="w-3.5 h-3.5 text-amber-600" />
-            <span>{driver.experience} Years Experience</span>
-          </div>
+          <p className="text-xs font-medium text-slate-500 mt-0.5 font-sans">
+            {driver.vehicleName} {driver.vehicleType && driver.vehicleType.toLowerCase() !== driver.vehicleName.toLowerCase() ? `(${driver.vehicleType})` : ''}
+          </p>
         </div>
 
-        {/* 3. Booking Green WhatsApp Button with clean layout & correct SVG */}
-        <div className="mt-5">
+        {/* 3. Booking Green WhatsApp Button */}
+        <div className="mt-3">
           <a
             href={whatsappUrl}
             onClick={handleBookingClick}
             target="_blank"
             rel="noopener noreferrer"
-            className="w-full py-3 px-4 bg-[#25D366] hover:bg-[#22c35e] text-white font-bold text-sm sm:text-base rounded-xl flex items-center justify-center gap-2 shadow-[0_4px_12px_rgba(37,211,102,0.25)] hover:shadow-[0_4px_16px_rgba(37,211,102,0.4)] active:scale-95 transition-all select-none cursor-pointer text-center font-sans"
+            className="w-full py-2.5 px-3 bg-[#25D366] hover:bg-[#22c35e] text-white font-bold text-xs sm:text-sm rounded-xl flex items-center justify-center gap-2 shadow-[0_3px_10px_rgba(37,211,102,0.2)] hover:shadow-[0_4px_14px_rgba(37,211,102,0.35)] active:scale-95 transition-all select-none cursor-pointer text-center font-sans"
           >
-            {/* Elegant Custom WhatsApp SVG Icon */}
+            {/* Custom WhatsApp SVG Icon */}
             <svg
-              className="w-5 h-5 fill-current shrink-0 text-white"
+              className="w-4 h-4 fill-current shrink-0 text-white"
               viewBox="0 0 24 24"
               xmlns="http://www.w3.org/2000/svg"
             >

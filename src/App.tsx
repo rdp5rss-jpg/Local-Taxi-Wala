@@ -5,6 +5,7 @@ import DriverCard from './components/DriverCard';
 import ShareModal from './components/ShareModal';
 import LandingPage from './components/LandingPage';
 import AdminPanel from './components/AdminPanel';
+import InfoModal, { InfoModalType } from './components/InfoModal';
 import { 
   City, 
   Driver, 
@@ -33,6 +34,7 @@ export default function App() {
   const [vehicleFilter, setVehicleFilter] = useState<string>('All');
   const [shareDriver, setShareDriver] = useState<Driver | null>(null);
   const [cityNameForShare, setCityNameForShare] = useState('');
+  const [activeInfoModal, setActiveInfoModal] = useState<InfoModalType>(null);
 
   // 1. Setup SPA Router events
   useEffect(() => {
@@ -167,9 +169,35 @@ export default function App() {
         <main className="flex-grow">
           <LandingPage />
         </main>
-        <footer className="bg-slate-950 text-slate-500 py-6 px-4 text-center border-t border-slate-900 font-sans text-xs">
-          <p>© 2026 Local Taxi Wala — Your trusted travel partner</p>
+        <footer className="bg-slate-950 text-slate-400 py-6 px-4 text-center border-t border-slate-900 font-sans text-xs flex flex-col items-center gap-3">
+          <div className="flex items-center justify-center gap-4 text-xs font-semibold flex-wrap text-slate-400">
+            <button
+              onClick={() => setActiveInfoModal('about')}
+              className="hover:text-amber-400 transition-colors cursor-pointer"
+            >
+              About Us
+            </button>
+            <span className="text-slate-700">•</span>
+            <button
+              onClick={() => setActiveInfoModal('privacy')}
+              className="hover:text-amber-400 transition-colors cursor-pointer"
+            >
+              Privacy Policy
+            </button>
+            <span className="text-slate-700">•</span>
+            <button
+              onClick={() => setActiveInfoModal('disclaimer')}
+              className="hover:text-amber-400 transition-colors cursor-pointer"
+            >
+              Disclaimer
+            </button>
+          </div>
+          <p className="text-slate-500 text-[11px]">© 2026 Local Taxi Wala — Your trusted travel partner</p>
         </footer>
+        <InfoModal
+          type={activeInfoModal}
+          onClose={() => setActiveInfoModal(null)}
+        />
       </div>
     );
   }
@@ -233,35 +261,28 @@ export default function App() {
 
                 {/* Categories Row scrollable in a single horizontal line, no wraps */}
                 <div className="mb-8 overflow-x-auto whitespace-nowrap scrollbar-none flex gap-2.5 pb-3 border-b border-slate-200/50 flex-nowrap">
-                  <button
-                    onClick={() => setVehicleFilter('All')}
-                    className={`px-4 py-2 rounded-full text-xs sm:text-sm font-bold flex items-center gap-1.5 transition-all select-none cursor-pointer shadow-sm border shrink-0 ${
-                      vehicleFilter === 'All'
-                        ? 'bg-amber-500 border-amber-500 text-slate-950 shadow-md font-black'
-                        : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
-                    }`}
-                  >
-                    <Car className="w-3.5 h-3.5 shrink-0" />
-                    <span>All Cars</span>
-                  </button>
-
-                  {categories.map((cat) => {
-                    const isActive = vehicleFilter === cat.name;
-                    return (
-                      <button
-                        key={cat.id}
-                        onClick={() => setVehicleFilter(cat.name)}
-                        className={`px-4 py-2 rounded-full text-xs sm:text-sm font-bold flex items-center gap-1.5 transition-all select-none cursor-pointer shadow-sm border shrink-0 ${
-                          isActive
-                            ? 'bg-amber-500 border-amber-500 text-slate-950 shadow-md font-black'
-                            : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
-                        }`}
-                      >
-                        <Car className="w-3.5 h-3.5 shrink-0" />
-                        <span>{cat.name}</span>
-                      </button>
-                    );
-                  })}
+                  {categories
+                    .filter((cat) => {
+                      const lower = cat.name.toLowerCase().trim();
+                      return lower !== 'all' && lower !== 'all cars' && lower !== 'audi';
+                    })
+                    .map((cat) => {
+                      const isActive = vehicleFilter === cat.name;
+                      return (
+                        <button
+                          key={cat.id}
+                          onClick={() => setVehicleFilter(isActive ? 'All' : cat.name)}
+                          className={`px-4 py-2 rounded-full text-xs sm:text-sm font-bold flex items-center gap-1.5 transition-all select-none cursor-pointer shadow-sm border shrink-0 ${
+                            isActive
+                              ? 'bg-amber-500 border-amber-500 text-slate-950 shadow-md font-black'
+                              : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+                          }`}
+                        >
+                          <Car className="w-3.5 h-3.5 shrink-0" />
+                          <span>{cat.name}</span>
+                        </button>
+                      );
+                    })}
                 </div>
 
                 {/* Drivers Cards Grid */}
@@ -286,13 +307,13 @@ export default function App() {
                     <HelpCircle className="w-11 h-11 text-slate-300 mx-auto mb-3" />
                     <h4 className="font-bold text-slate-800 text-sm">No drivers match this filter</h4>
                     <p className="text-xs text-slate-400 mt-1 max-w-xs mx-auto">
-                      Try selecting another filter above to see our active direct cab listings.
+                      Try selecting another category above to see our active direct cab listings.
                     </p>
                     <button
                       onClick={() => setVehicleFilter('All')}
                       className="mt-4 px-4 py-2 bg-slate-900 text-white rounded-xl text-xs font-bold hover:bg-slate-800 transition-colors"
                     >
-                      Show All Cars
+                      Clear Category Filter
                     </button>
                   </div>
                 )}
@@ -329,9 +350,37 @@ export default function App() {
       )}
 
       {/* 5. Clean, Minimal Footer */}
-      <footer className="bg-slate-950 text-slate-500 py-6 px-4 text-center border-t border-slate-900 font-sans text-xs">
-        <p>© 2026 Local Taxi Wala — Your trusted travel partner</p>
+      <footer className="bg-slate-950 text-slate-400 py-6 px-4 text-center border-t border-slate-900 font-sans text-xs flex flex-col items-center gap-3">
+        <div className="flex items-center justify-center gap-4 text-xs font-semibold flex-wrap text-slate-400">
+          <button
+            onClick={() => setActiveInfoModal('about')}
+            className="hover:text-amber-400 transition-colors cursor-pointer"
+          >
+            About Us
+          </button>
+          <span className="text-slate-700">•</span>
+          <button
+            onClick={() => setActiveInfoModal('privacy')}
+            className="hover:text-amber-400 transition-colors cursor-pointer"
+          >
+            Privacy Policy
+          </button>
+          <span className="text-slate-700">•</span>
+          <button
+            onClick={() => setActiveInfoModal('disclaimer')}
+            className="hover:text-amber-400 transition-colors cursor-pointer"
+          >
+            Disclaimer
+          </button>
+        </div>
+        <p className="text-slate-500 text-[11px]">© 2026 Local Taxi Wala — Your trusted travel partner</p>
       </footer>
+
+      {/* 6. Legal / Info Modal Overlay */}
+      <InfoModal
+        type={activeInfoModal}
+        onClose={() => setActiveInfoModal(null)}
+      />
     </div>
   );
 }
