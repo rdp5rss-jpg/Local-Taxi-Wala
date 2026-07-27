@@ -9,7 +9,7 @@ export default function Header() {
             Local Taxi Wala
           </h1>
           <p className="text-[10px] text-amber-400 font-bold tracking-wider uppercase mt-0.5">
-            Book with Local Taxi Wala only
+            Top Verified Local Taxi Services Only
           </p>
         </div>
       </div>

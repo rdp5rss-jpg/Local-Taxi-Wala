@@ -2,6 +2,7 @@ import React from 'react';
 import { City } from '../lib/db';
 import { Sparkles } from 'lucide-react';
 import { motion } from 'motion/react';
+import FeaturesBanner from './FeaturesBanner';
 
 interface CityGridProps {
   cities: City[];
@@ -42,7 +43,7 @@ export default function CityGrid({ cities, onSelectCity }: CityGridProps) {
           transition={{ delay: 0.1 }}
           className="text-sm sm:text-base text-slate-500 mt-2 font-medium font-sans"
         >
-          Choose your city to find trusted local drivers with zero commission
+          Find Local Trusted Taxi Service For Your Next Trip
         </motion.p>
       </div>
 
@@ -94,6 +95,9 @@ export default function CityGrid({ cities, onSelectCity }: CityGridProps) {
           </div>
         )}
       </motion.div>
+
+      {/* Feature Highlights Section */}
+      <FeaturesBanner />
     </div>
   );
 }

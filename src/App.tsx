@@ -6,6 +6,7 @@ import ShareModal from './components/ShareModal';
 import LandingPage from './components/LandingPage';
 import AdminPanel from './components/AdminPanel';
 import InfoModal, { InfoModalType } from './components/InfoModal';
+import FeaturesBanner from './components/FeaturesBanner';
 import { 
   City, 
   Driver, 
@@ -252,10 +253,10 @@ export default function App() {
                   <span>Back to Cities</span>
                 </button>
 
-                {/* Title Section (Subtitle texts removed per user specs) */}
+                {/* Title Section */}
                 <div className="mb-6">
-                  <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
-                    {activeCity.name} — Local Drivers
+                  <h2 className="text-xl sm:text-2xl md:text-3xl font-extrabold text-slate-900 tracking-tight">
+                    {activeCity.name} Top Verified Local Taxi Services in {activeCity.name}
                   </h2>
                 </div>
 
@@ -317,6 +318,9 @@ export default function App() {
                     </button>
                   </div>
                 )}
+
+                {/* Feature Highlights Section under driver listings */}
+                <FeaturesBanner />
               </motion.div>
             )}
           </AnimatePresence>
@@ -333,20 +337,23 @@ export default function App() {
         />
       )}
 
-      {/* 4. Instagram Floating Bar on bottom right (home page only) */}
-      {instagramLink && !activeCity && (
-        <a
-          href={instagramLink}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="fixed bottom-6 right-6 w-14 h-14 bg-gradient-to-tr from-yellow-500 via-pink-500 to-purple-600 hover:scale-110 active:scale-95 text-white rounded-full flex items-center justify-center shadow-2xl z-40 transition-all cursor-pointer group"
-          title="Follow us on Instagram"
-        >
-          <Instagram className="w-6 h-6 stroke-[2]" />
-          <span className="absolute right-16 bg-slate-900 text-white text-[10px] font-bold px-2.5 py-1.5 rounded-lg border border-slate-800 shadow-md opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none whitespace-nowrap">
-            Follow our Instagram!
-          </span>
-        </a>
+      {/* 4. Instagram Floating Bar on bottom right with 'Follow us' label above it */}
+      {instagramLink && (
+        <div className="fixed bottom-6 right-6 z-40 flex flex-col items-center gap-1.5 pointer-events-none">
+          <div className="bg-slate-900/95 backdrop-blur-md text-white border border-slate-700/90 text-[10px] font-black px-2.5 py-1 rounded-full shadow-xl flex items-center gap-1 animate-bounce pointer-events-auto">
+            <span className="tracking-wide">Follow us</span>
+            <span className="text-amber-400 text-xs">👇</span>
+          </div>
+          <a
+            href={instagramLink}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="w-13 h-13 sm:w-14 sm:h-14 bg-gradient-to-tr from-yellow-500 via-pink-500 to-purple-600 hover:scale-110 active:scale-95 text-white rounded-full flex items-center justify-center shadow-2xl transition-all cursor-pointer group pointer-events-auto"
+            title="Follow us on Instagram"
+          >
+            <Instagram className="w-6 h-6 stroke-[2]" />
+          </a>
+        </div>
       )}
 
       {/* 5. Clean, Minimal Footer */}
