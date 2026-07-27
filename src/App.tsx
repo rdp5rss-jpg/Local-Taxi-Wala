@@ -100,6 +100,18 @@ export default function App() {
     }
   }, [activeCity]);
 
+  // Default to Sedan filter when activeCity changes or drivers load
+  useEffect(() => {
+    if (activeCity) {
+      if (activeDrivers.length > 0) {
+        const hasSedan = activeDrivers.some((d) => d.vehicleType?.toLowerCase() === 'sedan');
+        setVehicleFilter(hasSedan ? 'Sedan' : 'All');
+      } else {
+        setVehicleFilter('Sedan');
+      }
+    }
+  }, [activeCity?.id, activeDrivers.length]);
+
   // Handle share parameters from URL search query (e.g. ?driver=xyz)
   useEffect(() => {
     if (activeCity && activeDrivers.length > 0) {
@@ -116,7 +128,7 @@ export default function App() {
   }, [activeCity, activeDrivers]);
 
   const handleSelectCity = (cityId: string) => {
-    setVehicleFilter('All'); // Reset category filters on change
+    setVehicleFilter('Sedan'); // Select Sedan by default when opening a city
     navigate(`/${cityId}`);
   };
 
@@ -148,10 +160,18 @@ export default function App() {
     }
   };
 
-  // Filter operational drivers for selected category
-  const filteredDrivers = activeDrivers.filter(
-    (driver) => vehicleFilter === 'All' || driver.vehicleType === vehicleFilter
-  );
+  // Filter operational drivers for selected category and prioritize Sedan listings first
+  const filteredDrivers = activeDrivers
+    .filter(
+      (driver) => vehicleFilter === 'All' || driver.vehicleType === vehicleFilter
+    )
+    .sort((a, b) => {
+      const isASedan = a.vehicleType?.toLowerCase() === 'sedan';
+      const isBSedan = b.vehicleType?.toLowerCase() === 'sedan';
+      if (isASedan && !isBSedan) return -1;
+      if (!isASedan && isBSedan) return 1;
+      return 0;
+    });
 
   // Check if we are on secondary administration or partner registration page
   const isAdminView = currentPath === '/admin' || currentPath === '/admin882' || currentPath.startsWith('/admin');
