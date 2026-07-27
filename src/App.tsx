@@ -274,10 +274,13 @@ export default function App() {
                 </button>
 
                 {/* Title Section */}
-                <div className="mb-6">
-                  <h2 className="text-xl sm:text-2xl md:text-3xl font-extrabold text-slate-900 tracking-tight">
-                    {activeCity.name} Top Verified Local Taxi Services in {activeCity.name}
+                <div className="mb-6 text-center">
+                  <h2 className="text-2xl sm:text-3xl md:text-4xl font-extrabold text-slate-900 tracking-tight">
+                    {activeCity.name}
                   </h2>
+                  <p className="text-sm sm:text-base font-bold text-amber-600 mt-1">
+                    Top Verified Local Taxi Services
+                  </p>
                 </div>
 
                 {/* Categories Row scrollable in a single horizontal line, no wraps */}
