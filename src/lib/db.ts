@@ -53,44 +53,14 @@ export interface Inquiry {
   createdAt: string;
 }
 
-// Preferred city order helper
-export function sortCitiesByCustomOrder(cities: City[]): City[] {
-  const preferredCityOrder = [
-    'udaipur',
-    'jaipur',
-    'jaisalmer',
-    'jodhpur',
-    'goa',
-    'shillong',
-    'guwahati',
-    'kerala'
-  ];
-
-  return [...cities].sort((a, b) => {
-    const aName = a.name.toLowerCase().trim();
-    const bName = b.name.toLowerCase().trim();
-
-    const aIndex = preferredCityOrder.indexOf(aName);
-    const bIndex = preferredCityOrder.indexOf(bName);
-
-    if (aIndex !== -1 && bIndex !== -1) {
-      return aIndex - bIndex;
-    }
-    if (aIndex !== -1) return -1;
-    if (bIndex !== -1) return 1;
-
-    return a.name.localeCompare(b.name);
-  });
-}
-
 // 1. Fetch Cities
 export async function getCities(): Promise<City[]> {
-  const querySnapshot = await getDocs(collection(db, 'cities'));
+  const querySnapshot = await getDocs(query(collection(db, 'cities'), orderBy('name')));
   const cities: City[] = [];
   querySnapshot.forEach((docSnap) => {
     cities.push({ id: docSnap.id, ...docSnap.data() } as City);
   });
-  return sortCitiesByCustomOrder(cities);
+  return cities;
 }
 
 // 2. Add City
