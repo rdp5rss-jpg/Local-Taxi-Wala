@@ -53,14 +53,47 @@ export interface Inquiry {
   createdAt: string;
 }
 
+export const PREFERRED_CITY_ORDER: string[] = [
+  'udaipur',
+  'jaipur',
+  'jaisalmer',
+  'jodhpur',
+  'goa',
+  'shillong',
+  'guwahati',
+  'kerala'
+];
+
+export function sortCities(cities: City[]): City[] {
+  const orderMap = new Map(PREFERRED_CITY_ORDER.map((name, idx) => [name, idx]));
+
+  return [...cities].sort((a, b) => {
+    const nameA = (a.name || '').toLowerCase().trim();
+    const nameB = (b.name || '').toLowerCase().trim();
+    const idA = (a.id || '').toLowerCase().trim();
+    const idB = (b.id || '').toLowerCase().trim();
+
+    let indexA = orderMap.has(nameA) ? orderMap.get(nameA)! : (orderMap.has(idA) ? orderMap.get(idA)! : -1);
+    let indexB = orderMap.has(nameB) ? orderMap.get(nameB)! : (orderMap.has(idB) ? orderMap.get(idB)! : -1);
+
+    if (indexA !== -1 && indexB !== -1) {
+      return indexA - indexB;
+    }
+    if (indexA !== -1) return -1;
+    if (indexB !== -1) return 1;
+
+    return (a.name || '').localeCompare(b.name || '');
+  });
+}
+
 // 1. Fetch Cities
 export async function getCities(): Promise<City[]> {
-  const querySnapshot = await getDocs(query(collection(db, 'cities'), orderBy('name')));
+  const querySnapshot = await getDocs(collection(db, 'cities'));
   const cities: City[] = [];
   querySnapshot.forEach((docSnap) => {
     cities.push({ id: docSnap.id, ...docSnap.data() } as City);
   });
-  return cities;
+  return sortCities(cities);
 }
 
 // 2. Add City
@@ -203,22 +236,52 @@ export async function seedInitialDataIfEmpty(): Promise<void> {
     // Seed Cities
     const initialCities = [
       {
+        id: "udaipur",
+        name: "Udaipur",
+        subtitle: "Local drivers available",
+        image: "https://images.unsplash.com/photo-1595658658481-d53d3f999875?w=800&auto=format&fit=crop&q=80"
+      },
+      {
+        id: "jaipur",
+        name: "Jaipur",
+        subtitle: "Local drivers available",
+        image: "https://images.unsplash.com/photo-1477587458883-47145ed94245?w=800&auto=format&fit=crop&q=80"
+      },
+      {
+        id: "jaisalmer",
+        name: "Jaisalmer",
+        subtitle: "Local drivers available",
+        image: "https://images.unsplash.com/photo-1599661046289-e31897846e41?w=800&auto=format&fit=crop&q=80"
+      },
+      {
+        id: "jodhpur",
+        name: "Jodhpur",
+        subtitle: "Local drivers available",
+        image: "https://images.unsplash.com/photo-1588083949474-77b70e342b36?w=800&auto=format&fit=crop&q=80"
+      },
+      {
         id: "goa",
         name: "Goa",
         subtitle: "Local drivers available",
         image: "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=800&auto=format&fit=crop&q=80"
       },
       {
-        id: "kashmir",
-        name: "Kashmir",
+        id: "shillong",
+        name: "Shillong",
         subtitle: "Local drivers available",
-        image: "https://images.unsplash.com/photo-1566228015668-4c45dbc4e2f5?w=800&auto=format&fit=crop&q=80"
+        image: "https://images.unsplash.com/photo-1626621341517-bbf3d9990a23?w=800&auto=format&fit=crop&q=80"
       },
       {
-        id: "udaipur",
-        name: "Udaipur",
+        id: "guwahati",
+        name: "Guwahati",
         subtitle: "Local drivers available",
-        image: "https://images.unsplash.com/photo-1595658658481-d53d3f999875?w=800&auto=format&fit=crop&q=80"
+        image: "https://images.unsplash.com/photo-1605649487212-47bdab064df7?w=800&auto=format&fit=crop&q=80"
+      },
+      {
+        id: "kerala",
+        name: "Kerala",
+        subtitle: "Local drivers available",
+        image: "https://images.unsplash.com/photo-1602216056096-3b40cc0c9944?w=800&auto=format&fit=crop&q=80"
       }
     ];
 
