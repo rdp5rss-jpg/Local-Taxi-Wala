@@ -75,6 +75,38 @@ const compressAndGetBase64 = (file: File): Promise<string> => {
   });
 };
 
+const uploadToImgBB = async (base64Image: string): Promise<string> => {
+  const apiKey = import.meta.env.VITE_IMGBB_API_KEY;
+  if (!apiKey) {
+    console.warn("VITE_IMGBB_API_KEY is not set. Falling back to base64 storage (Not recommended for Firestore!).");
+    return base64Image;
+  }
+
+  try {
+    // Remove the data:image/jpeg;base64, prefix if it exists
+    const base64Data = base64Image.split(',')[1] || base64Image;
+    
+    const formData = new FormData();
+    formData.append('image', base64Data);
+    
+    const response = await fetch(`https://api.imgbb.com/1/upload?key=${apiKey}`, {
+      method: 'POST',
+      body: formData,
+    });
+    
+    const data = await response.json();
+    if (data.success) {
+      return data.data.url;
+    } else {
+      console.error("ImgBB upload failed:", data);
+      return base64Image; // Fallback
+    }
+  } catch (error) {
+    console.error("Error uploading to ImgBB:", error);
+    return base64Image; // Fallback
+  }
+};
+
 export default function AdminPanel() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [email, setEmail] = useState('');
@@ -220,7 +252,8 @@ export default function AdminPanel() {
       if (file) {
         try {
           const base64 = await compressAndGetBase64(file);
-          processedImages.push(base64);
+          const finalImageUrl = await uploadToImgBB(base64);
+          processedImages.push(finalImageUrl);
         } catch (err) {
           console.error("Failed to compress and convert file:", err);
         }
