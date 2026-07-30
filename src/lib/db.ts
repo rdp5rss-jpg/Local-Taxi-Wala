@@ -124,6 +124,13 @@ export async function getDrivers(cityId: string): Promise<Driver[]> {
   querySnapshot.forEach((docSnap) => {
     drivers.push({ id: docSnap.id, ...docSnap.data() } as Driver);
   });
+  
+  // Shuffle drivers array to ensure everyone gets a fair chance to be at the top
+  for (let i = drivers.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [drivers[i], drivers[j]] = [drivers[j], drivers[i]];
+  }
+  
   return drivers;
 }
 

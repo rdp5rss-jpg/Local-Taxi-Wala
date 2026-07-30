@@ -160,18 +160,10 @@ export default function App() {
     }
   };
 
-  // Filter operational drivers for selected category and prioritize Sedan listings first
-  const filteredDrivers = activeDrivers
-    .filter(
-      (driver) => vehicleFilter === 'All' || driver.vehicleType === vehicleFilter
-    )
-    .sort((a, b) => {
-      const isASedan = a.vehicleType?.toLowerCase() === 'sedan';
-      const isBSedan = b.vehicleType?.toLowerCase() === 'sedan';
-      if (isASedan && !isBSedan) return -1;
-      if (!isASedan && isBSedan) return 1;
-      return 0;
-    });
+  // Filter operational drivers for selected category
+  const filteredDrivers = activeDrivers.filter(
+    (driver) => vehicleFilter === 'All' || driver.vehicleType === vehicleFilter
+  );
 
   // Check if we are on secondary administration or partner registration page
   const isAdminView = currentPath === '/admin' || currentPath === '/admin882' || currentPath.startsWith('/admin');
