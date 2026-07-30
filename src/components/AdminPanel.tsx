@@ -127,7 +127,8 @@ export default function AdminPanel() {
   const [newCityId, setNewCityId] = useState('');
   const [newCityName, setNewCityName] = useState('');
   const [newCitySubtitle, setNewCitySubtitle] = useState('');
-  const [newCityImage, setNewCityImage] = useState('');
+  const [uploadedCityImage, setUploadedCityImage] = useState<string>('');
+  const [cityImageUploadLoading, setCityImageUploadLoading] = useState(false);
 
   const [newDriverName, setNewDriverName] = useState('');
   const [newDriverCityId, setNewDriverCityId] = useState('');
@@ -207,10 +208,29 @@ export default function AdminPanel() {
     sessionStorage.removeItem('admin_authenticated');
   };
 
+  // Handle City Image Upload
+  const handleCityImageSelection = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!e.target.files || e.target.files.length === 0) return;
+    setCityImageUploadLoading(true);
+    
+    const file = e.target.files[0];
+    try {
+      const base64 = await compressAndGetBase64(file);
+      const finalImageUrl = await uploadToImgBB(base64);
+      setUploadedCityImage(finalImageUrl);
+    } catch (err) {
+      console.error("Failed to upload city image:", err);
+      alert("Failed to upload image. Check console for details.");
+    } finally {
+      setCityImageUploadLoading(false);
+      e.target.value = '';
+    }
+  };
+
   // Add a New City
   const handleAddCity = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newCityId || !newCityName || !newCityImage) return;
+    if (!newCityId || !newCityName || !uploadedCityImage) return;
 
     setFormSubmitting(true);
     try {
@@ -218,13 +238,13 @@ export default function AdminPanel() {
         id: newCityId.toLowerCase().trim(),
         name: newCityName,
         subtitle: newCitySubtitle || "Local drivers available",
-        image: newCityImage
+        image: uploadedCityImage
       });
       // Reset
       setNewCityId('');
       setNewCityName('');
       setNewCitySubtitle('');
-      setNewCityImage('');
+      setUploadedCityImage('');
       await fetchAdminData();
     } catch (err) {
       console.error(err);
@@ -705,15 +725,40 @@ export default function AdminPanel() {
                       </div>
 
                       <div>
-                        <label className="block text-xs font-bold uppercase text-slate-400 mb-1">Cover Image URL</label>
-                        <input
-                          type="url"
-                          required
-                          placeholder="e.g. https://images.unsplash.com/..."
-                          value={newCityImage}
-                          onChange={(e) => setNewCityImage(e.target.value)}
-                          className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-amber-500"
-                        />
+                        <label className="block text-xs font-bold uppercase text-slate-400 mb-1">
+                          Cover Image URL or Upload
+                        </label>
+                        <div className="flex gap-2">
+                          <input
+                            type="text"
+                            placeholder="e.g. https://images.unsplash.com..."
+                            value={uploadedCityImage}
+                            onChange={(e) => setUploadedCityImage(e.target.value)}
+                            required={!uploadedCityImage}
+                            className="flex-1 bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-amber-500"
+                          />
+                          <div className="relative">
+                            <input
+                              type="file"
+                              accept="image/jpeg, image/png, image/webp"
+                              onChange={handleCityImageSelection}
+                              disabled={cityImageUploadLoading}
+                              className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+                              title="Upload Image"
+                            />
+                            <button
+                              type="button"
+                              className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-sm font-bold border border-slate-700 transition-colors pointer-events-none whitespace-nowrap"
+                            >
+                              {cityImageUploadLoading ? 'Uploading...' : 'Upload Image'}
+                            </button>
+                          </div>
+                        </div>
+                        {uploadedCityImage && !cityImageUploadLoading && (
+                          <div className="mt-2 w-16 h-16 rounded-md overflow-hidden bg-slate-800 border border-slate-700">
+                            <img src={uploadedCityImage} alt="Preview" className="w-full h-full object-cover" />
+                          </div>
+                        )}
                       </div>
                     </div>
 
