@@ -16,7 +16,8 @@ import {
   getVehicleCategories,
   addVehicleCategory,
   deleteVehicleCategory,
-  VehicleCategory
+  VehicleCategory,
+  forceSeedDefaultData
 } from '../lib/db';
 import { 
   LayoutDashboard, 
@@ -419,6 +420,24 @@ export default function AdminPanel() {
       alert("Instagram Link updated successfully!");
     } catch (err) {
       console.error(err);
+    } finally {
+      setFormSubmitting(false);
+    }
+  };
+
+  // Restore Default Seeding Data
+  const handleRestoreDefaults = async () => {
+    if (!window.confirm("Are you sure you want to restore all 8 default cities? This will clear any cities you currently have and overwrite them with the default set.")) {
+      return;
+    }
+    setFormSubmitting(true);
+    try {
+      await forceSeedDefaultData();
+      alert("Default cities and categories restored successfully!");
+      await fetchAdminData();
+    } catch (err) {
+      console.error("Failed to restore defaults:", err);
+      alert("Failed to restore default cities. Check console for details.");
     } finally {
       setFormSubmitting(false);
     }
@@ -1149,6 +1168,22 @@ export default function AdminPanel() {
                       {formSubmitting ? 'Updating...' : 'Save Settings'}
                     </button>
                   </form>
+
+                  {/* Danger Zone: Restore Defaults */}
+                  <div className="mt-8 bg-slate-950 border border-red-950 p-5 rounded-2xl">
+                    <h3 className="text-xs font-bold text-red-500 uppercase tracking-wider mb-1 font-sans">Danger Zone</h3>
+                    <p className="text-xs text-slate-400 mb-4 font-sans">
+                      Need to restore the initial content? Use this action to clean-slate the destinations back to the original 8 beautiful Indian cities (Udaipur, Jaipur, Goa, etc.). This will overwrite current cities.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={handleRestoreDefaults}
+                      disabled={formSubmitting}
+                      className="px-4 py-2 bg-red-950 hover:bg-red-900 text-red-200 font-bold border border-red-900/50 rounded-xl text-xs transition-all cursor-pointer"
+                    >
+                      {formSubmitting ? 'Restoring...' : 'Restore 8 Default Cities'}
+                    </button>
+                  </div>
                 </div>
               )}
 

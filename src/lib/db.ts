@@ -236,6 +236,14 @@ export async function updateInstagramLink(link: string): Promise<void> {
 
 // Seeding function if database is empty to ensure gorgeous initial experience
 export async function seedInitialDataIfEmpty(): Promise<void> {
+  // Check if database has been seeded before using global settings flag
+  const globalRef = doc(db, 'settings', 'global');
+  const globalSnap = await getDoc(globalRef);
+  if (globalSnap.exists() && globalSnap.data().seeded === true) {
+    // Already seeded, do not overwrite/re-seed even if cities list is empty
+    return;
+  }
+
   const citiesSnap = await getDocs(collection(db, 'cities'));
   if (citiesSnap.empty) {
     console.log("Seeding initial clean destinations...");
@@ -349,10 +357,11 @@ export async function seedInitialDataIfEmpty(): Promise<void> {
       createdAt: new Date().toISOString()
     });
 
-    // Set Default settings
+    // Set Default settings with seeded flag
     await setDoc(doc(db, 'settings', 'global'), {
-      instagramLink: 'https://instagram.com/localtaxiwala'
-    });
+      instagramLink: 'https://instagram.com/localtaxiwala',
+      seeded: true
+    }, { merge: true });
 
     // Seed default vehicle categories
     const defaultCategories = ['Sedan', 'SUV', 'Tempo Traveller'];
@@ -360,6 +369,11 @@ export async function seedInitialDataIfEmpty(): Promise<void> {
       await addVehicleCategory(cat);
     }
   } else {
+    // Already has data, mark as seeded so future empty states do not trigger auto-seeding
+    await setDoc(doc(db, 'settings', 'global'), {
+      seeded: true
+    }, { merge: true });
+
     // If not empty, still ensure basic categories are seeded so existing setups don't have empty options
     const categoriesSnap = await getDocs(collection(db, 'vehicleCategories'));
     if (categoriesSnap.empty) {
@@ -370,3 +384,83 @@ export async function seedInitialDataIfEmpty(): Promise<void> {
     }
   }
 }
+
+// Force restore default cities if they were completely deleted
+export async function forceSeedDefaultData(): Promise<void> {
+  // Clear any existing cities first so there's no duplicates
+  const citiesSnap = await getDocs(collection(db, 'cities'));
+  for (const docSnap of citiesSnap.docs) {
+    await deleteDoc(docSnap.ref);
+  }
+
+  const initialCities = [
+    {
+      id: "udaipur",
+      name: "Udaipur",
+      subtitle: "Local drivers available",
+      image: "https://images.unsplash.com/photo-1595658658481-d53d3f999875?w=800&auto=format&fit=crop&q=80"
+    },
+    {
+      id: "jaipur",
+      name: "Jaipur",
+      subtitle: "Local drivers available",
+      image: "https://images.unsplash.com/photo-1477587458883-47145ed94245?w=800&auto=format&fit=crop&q=80"
+    },
+    {
+      id: "jaisalmer",
+      name: "Jaisalmer",
+      subtitle: "Local drivers available",
+      image: "https://images.unsplash.com/photo-1599661046289-e31897846e41?w=800&auto=format&fit=crop&q=80"
+    },
+    {
+      id: "jodhpur",
+      name: "Jodhpur",
+      subtitle: "Local drivers available",
+      image: "https://images.unsplash.com/photo-1588083949474-77b70e342b36?w=800&auto=format&fit=crop&q=80"
+    },
+    {
+      id: "goa",
+      name: "Goa",
+      subtitle: "Local drivers available",
+      image: "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=800&auto=format&fit=crop&q=80"
+    },
+    {
+      id: "shillong",
+      name: "Shillong",
+      subtitle: "Local drivers available",
+      image: "https://images.unsplash.com/photo-1626621341517-bbf3d9990a23?w=800&auto=format&fit=crop&q=80"
+    },
+    {
+      id: "guwahati",
+      name: "Guwahati",
+      subtitle: "Local drivers available",
+      image: "https://images.unsplash.com/photo-1605649487212-47bdab064df7?w=800&auto=format&fit=crop&q=80"
+    },
+    {
+      id: "kerala",
+      name: "Kerala",
+      subtitle: "Local drivers available",
+      image: "https://images.unsplash.com/photo-1602216056096-3b40cc0c9944?w=800&auto=format&fit=crop&q=80"
+    }
+  ];
+
+  for (const city of initialCities) {
+    await addCity(city);
+  }
+
+  // Set Default settings with seeded: true
+  await setDoc(doc(db, 'settings', 'global'), {
+    instagramLink: 'https://instagram.com/localtaxiwala',
+    seeded: true
+  }, { merge: true });
+
+  // Ensure default categories exist
+  const categoriesSnap = await getDocs(collection(db, 'vehicleCategories'));
+  if (categoriesSnap.empty) {
+    const defaultCategories = ['Sedan', 'SUV', 'Tempo Traveller'];
+    for (const cat of defaultCategories) {
+      await addVehicleCategory(cat);
+    }
+  }
+}
+
