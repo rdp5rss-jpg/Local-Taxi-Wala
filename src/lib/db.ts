@@ -1,20 +1,3 @@
-import { db } from './firebase';
-import { 
-  collection, 
-  getDocs, 
-  addDoc, 
-  doc, 
-  setDoc, 
-  getDoc, 
-  updateDoc, 
-  deleteDoc, 
-  query, 
-  where, 
-  increment, 
-  orderBy, 
-  limit 
-} from 'firebase/firestore';
-
 export interface Driver {
   id: string;
   cityId: string;
@@ -53,6 +36,27 @@ export interface Inquiry {
   createdAt: string;
 }
 
+// Local cache helpers to ensure app works even when Firestore quota is exceeded
+function getLocalCache<T>(key: string, defaultValue: T): T {
+  try {
+    const value = localStorage.getItem(key);
+    if (value) {
+      return JSON.parse(value) as T;
+    }
+  } catch (e) {
+    console.error("Local storage read error:", e);
+  }
+  return defaultValue;
+}
+
+function setLocalCache<T>(key: string, value: T): void {
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+  } catch (e) {
+    console.error("Local storage write error:", e);
+  }
+}
+
 export const PREFERRED_CITY_ORDER: string[] = [
   'udaipur',
   'jaipur',
@@ -88,379 +92,291 @@ export function sortCities(cities: City[]): City[] {
 
 // 1. Fetch Cities
 export async function getCities(): Promise<City[]> {
-  const querySnapshot = await getDocs(collection(db, 'cities'));
-  const cities: City[] = [];
-  querySnapshot.forEach((docSnap) => {
-    cities.push({ id: docSnap.id, ...docSnap.data() } as City);
-  });
-  return sortCities(cities);
+  try {
+    const res = await fetch('/api/cities');
+    if (!res.ok) throw new Error("HTTP error " + res.status);
+    const cities = await res.json() as City[];
+    setLocalCache('cached_cities', cities);
+    return cities;
+  } catch (err) {
+    console.warn("API error in getCities, loading from cache...", err);
+    return getLocalCache<City[]>('cached_cities', []);
+  }
 }
 
 // 2. Add City
 export async function addCity(city: Omit<City, 'createdAt'>): Promise<void> {
-  await setDoc(doc(db, 'cities', city.id.toLowerCase().trim()), {
-    name: city.name,
-    subtitle: city.subtitle || "Local drivers available",
-    image: city.image,
-    createdAt: new Date().toISOString()
+  const res = await fetch('/api/cities', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(city)
   });
+  if (!res.ok) throw new Error("HTTP error " + res.status);
+  
+  // Update local cache
+  try {
+    const cached = getLocalCache<City[]>('cached_cities', []);
+    const updated = [
+      ...cached.filter(c => c.id !== city.id.toLowerCase().trim()),
+      { id: city.id.toLowerCase().trim(), name: city.name, subtitle: city.subtitle || "Local drivers available", image: city.image }
+    ];
+    setLocalCache('cached_cities', sortCities(updated));
+  } catch (e) {
+    console.error("Cache update failed:", e);
+  }
 }
 
 // 3. Delete City
 export async function deleteCity(cityId: string): Promise<void> {
-  await deleteDoc(doc(db, 'cities', cityId));
-  // Delete all drivers under this city
-  const driversSnapshot = await getDocs(query(collection(db, 'drivers'), where('cityId', '==', cityId)));
-  const promises = driversSnapshot.docs.map((dDoc) => deleteDoc(doc(db, 'drivers', dDoc.id)));
-  await Promise.all(promises);
+  const res = await fetch(`/api/cities/${cityId}`, {
+    method: 'DELETE'
+  });
+  if (!res.ok) throw new Error("HTTP error " + res.status);
+  
+  // Update local cache
+  try {
+    const cached = getLocalCache<City[]>('cached_cities', []);
+    setLocalCache('cached_cities', cached.filter(c => c.id !== cityId));
+  } catch (e) {
+    console.error("Cache update failed:", e);
+  }
 }
 
 // 4. Fetch Drivers for a City
 export async function getDrivers(cityId: string): Promise<Driver[]> {
-  const querySnapshot = await getDocs(
-    query(collection(db, 'drivers'), where('cityId', '==', cityId))
-  );
-  const drivers: Driver[] = [];
-  querySnapshot.forEach((docSnap) => {
-    drivers.push({ id: docSnap.id, ...docSnap.data() } as Driver);
-  });
-  
-  // Shuffle drivers array to ensure everyone gets a fair chance to be at the top
-  for (let i = drivers.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [drivers[i], drivers[j]] = [drivers[j], drivers[i]];
+  try {
+    const res = await fetch(`/api/drivers?cityId=${cityId}`);
+    if (!res.ok) throw new Error("HTTP error " + res.status);
+    const drivers = await res.json() as Driver[];
+    setLocalCache(`cached_drivers_${cityId}`, drivers);
+    return drivers;
+  } catch (err) {
+    console.warn(`API error in getDrivers for ${cityId}, loading from cache...`, err);
+    return getLocalCache<Driver[]>(`cached_drivers_${cityId}`, []);
   }
-  
-  return drivers;
 }
 
 // 5. Fetch All Drivers (for Analytics)
 export async function getAllDrivers(): Promise<Driver[]> {
-  const querySnapshot = await getDocs(collection(db, 'drivers'));
-  const drivers: Driver[] = [];
-  querySnapshot.forEach((docSnap) => {
-    drivers.push({ id: docSnap.id, ...docSnap.data() } as Driver);
-  });
-  return drivers;
+  try {
+    const res = await fetch('/api/drivers/all');
+    if (!res.ok) throw new Error("HTTP error " + res.status);
+    const drivers = await res.json() as Driver[];
+    setLocalCache('cached_all_drivers', drivers);
+    return drivers;
+  } catch (err) {
+    console.warn("API error in getAllDrivers, loading from cache...", err);
+    return getLocalCache<Driver[]>('cached_all_drivers', []);
+  }
 }
 
 // 6. Create Driver
 export async function addDriver(driver: Omit<Driver, 'id' | 'clicks' | 'monthlyClicks'>): Promise<string> {
-  const docRef = await addDoc(collection(db, 'drivers'), {
-    ...driver,
-    clicks: 0,
-    monthlyClicks: 0,
-    createdAt: new Date().toISOString()
+  const res = await fetch('/api/drivers', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(driver)
   });
-  return docRef.id;
+  if (!res.ok) throw new Error("HTTP error " + res.status);
+  const data = await res.json();
+  const driverId = data.id;
+
+  // Update cache
+  try {
+    const cityId = driver.cityId;
+    const cached = getLocalCache<Driver[]>(`cached_drivers_${cityId}`, []);
+    const newDriverObj = {
+      id: driverId,
+      ...driver,
+      clicks: 0,
+      monthlyClicks: 0,
+      createdAt: new Date().toISOString()
+    } as Driver;
+    setLocalCache(`cached_drivers_${cityId}`, [...cached, newDriverObj]);
+    
+    const allCached = getLocalCache<Driver[]>('cached_all_drivers', []);
+    setLocalCache('cached_all_drivers', [...allCached, newDriverObj]);
+  } catch (e) {
+    console.error("Cache update failed:", e);
+  }
+
+  return driverId;
 }
 
 // 7. Delete Driver
 export async function deleteDriver(driverId: string): Promise<void> {
-  await deleteDoc(doc(db, 'drivers', driverId));
+  const res = await fetch(`/api/drivers/${driverId}`, {
+    method: 'DELETE'
+  });
+  if (!res.ok) throw new Error("HTTP error " + res.status);
+
+  // Update cache
+  try {
+    const allCached = getLocalCache<Driver[]>('cached_all_drivers', []);
+    const driverToDelete = allCached.find(d => d.id === driverId);
+    if (driverToDelete) {
+      const cityId = driverToDelete.cityId;
+      const cityCached = getLocalCache<Driver[]>(`cached_drivers_${cityId}`, []);
+      setLocalCache(`cached_drivers_${cityId}`, cityCached.filter(d => d.id !== driverId));
+    }
+    setLocalCache('cached_all_drivers', allCached.filter(d => d.id !== driverId));
+  } catch (e) {
+    console.error("Cache update failed:", e);
+  }
 }
 
 // 8. Record WhatsApp Click (Analytics)
 export async function recordWhatsAppClick(driverId: string): Promise<void> {
-  const driverRef = doc(db, 'drivers', driverId);
-  await updateDoc(driverRef, {
-    clicks: increment(1),
-    monthlyClicks: increment(1)
-  });
+  try {
+    const res = await fetch(`/api/drivers/${driverId}/click`, {
+      method: 'POST'
+    });
+    if (!res.ok) throw new Error("HTTP error " + res.status);
+  } catch (e) {
+    console.error("Failed to record click on backend:", e);
+  }
 }
 
 // 9. Fetch Inquiries
 export async function getInquiries(): Promise<Inquiry[]> {
-  const querySnapshot = await getDocs(query(collection(db, 'inquiries'), orderBy('createdAt', 'desc')));
-  const inquiries: Inquiry[] = [];
-  querySnapshot.forEach((docSnap) => {
-    inquiries.push({ id: docSnap.id, ...docSnap.data() } as Inquiry);
-  });
-  return inquiries;
+  try {
+    const res = await fetch('/api/inquiries');
+    if (!res.ok) throw new Error("HTTP error " + res.status);
+    const inquiries = await res.json() as Inquiry[];
+    setLocalCache('cached_inquiries', inquiries);
+    return inquiries;
+  } catch (err) {
+    console.warn("API error in getInquiries, loading from cache...", err);
+    return getLocalCache<Inquiry[]>('cached_inquiries', []);
+  }
 }
 
 // 10. Add Inquiry
 export async function addInquiry(inquiry: Omit<Inquiry, 'id' | 'createdAt'>): Promise<void> {
-  await addDoc(collection(db, 'inquiries'), {
-    ...inquiry,
-    createdAt: new Date().toISOString()
+  const res = await fetch('/api/inquiries', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(inquiry)
   });
+  if (!res.ok) throw new Error("HTTP error " + res.status);
+  const data = await res.json();
+  const inquiryId = data.id;
+
+  try {
+    const cached = getLocalCache<Inquiry[]>('cached_inquiries', []);
+    const newInquiry = { id: inquiryId, ...inquiry, createdAt: new Date().toISOString() };
+    setLocalCache('cached_inquiries', [newInquiry, ...cached]);
+  } catch (e) {
+    console.error("Cache update failed:", e);
+  }
 }
 
 // 10.5. Delete Inquiry
 export async function deleteInquiry(inquiryId: string): Promise<void> {
-  await deleteDoc(doc(db, 'inquiries', inquiryId));
+  const res = await fetch(`/api/inquiries/${inquiryId}`, {
+    method: 'DELETE'
+  });
+  if (!res.ok) throw new Error("HTTP error " + res.status);
+
+  try {
+    const cached = getLocalCache<Inquiry[]>('cached_inquiries', []);
+    setLocalCache('cached_inquiries', cached.filter(i => i.id !== inquiryId));
+  } catch (e) {
+    console.error("Cache update failed:", e);
+  }
 }
 
 // 10.6. Fetch Vehicle Categories
 export async function getVehicleCategories(): Promise<VehicleCategory[]> {
-  const querySnapshot = await getDocs(collection(db, 'vehicleCategories'));
-  const categories: VehicleCategory[] = [];
-  querySnapshot.forEach((docSnap) => {
-    categories.push({ id: docSnap.id, ...docSnap.data() } as VehicleCategory);
-  });
-  // Sort alphabetically
-  return categories.sort((a, b) => a.name.localeCompare(b.name));
+  try {
+    const res = await fetch('/api/categories');
+    if (!res.ok) throw new Error("HTTP error " + res.status);
+    const categories = await res.json() as VehicleCategory[];
+    const sorted = categories.sort((a, b) => a.name.localeCompare(b.name));
+    setLocalCache('cached_vehicle_categories', sorted);
+    return sorted;
+  } catch (err) {
+    console.warn("API error in getVehicleCategories, loading from cache...", err);
+    return getLocalCache<VehicleCategory[]>('cached_vehicle_categories', [
+      { id: 'sedan', name: 'Sedan' },
+      { id: 'suv', name: 'SUV' },
+      { id: 'tempo-traveller', name: 'Tempo Traveller' }
+    ]);
+  }
 }
 
 // 10.7. Add Vehicle Category
 export async function addVehicleCategory(name: string): Promise<void> {
-  const cleanName = name.trim();
-  const id = cleanName.toLowerCase().replace(/[^a-z0-9-]/g, '-');
-  await setDoc(doc(db, 'vehicleCategories', id), {
-    name: cleanName
+  const res = await fetch('/api/categories', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name })
   });
+  if (!res.ok) throw new Error("HTTP error " + res.status);
+  const data = await res.json();
+  const id = data.id;
+
+  try {
+    const cached = getLocalCache<VehicleCategory[]>('cached_vehicle_categories', []);
+    if (!cached.some(c => c.id === id)) {
+      const updated = [...cached, { id, name: name.trim() }].sort((a, b) => a.name.localeCompare(b.name));
+      setLocalCache('cached_vehicle_categories', updated);
+    }
+  } catch (e) {
+    console.error("Cache update failed:", e);
+  }
 }
 
 // 10.8. Delete Vehicle Category
 export async function deleteVehicleCategory(id: string): Promise<void> {
-  await deleteDoc(doc(db, 'vehicleCategories', id));
+  const res = await fetch(`/api/categories/${id}`, {
+    method: 'DELETE'
+  });
+  if (!res.ok) throw new Error("HTTP error " + res.status);
+
+  try {
+    const cached = getLocalCache<VehicleCategory[]>('cached_vehicle_categories', []);
+    setLocalCache('cached_vehicle_categories', cached.filter(c => c.id !== id));
+  } catch (e) {
+    console.error("Cache update failed:", e);
+  }
 }
 
 // 11. Settings (Instagram link)
 export async function getInstagramLink(): Promise<string> {
-  const docRef = doc(db, 'settings', 'global');
-  const docSnap = await getDoc(docRef);
-  if (docSnap.exists()) {
-    return docSnap.data().instagramLink || 'https://instagram.com/localtaxiwala';
+  try {
+    const res = await fetch('/api/settings/instagram');
+    if (!res.ok) throw new Error("HTTP error " + res.status);
+    const data = await res.json();
+    const link = data.instagramLink || 'https://instagram.com/localtaxiwala';
+    setLocalCache('cached_instagram_link', link);
+    return link;
+  } catch (err) {
+    console.warn("API error in getInstagramLink, loading from cache...", err);
+    return getLocalCache<string>('cached_instagram_link', 'https://instagram.com/localtaxiwala');
   }
-  return 'https://instagram.com/localtaxiwala';
 }
 
 export async function updateInstagramLink(link: string): Promise<void> {
-  await setDoc(doc(db, 'settings', 'global'), {
-    instagramLink: link,
-    updatedAt: new Date().toISOString()
-  }, { merge: true });
+  const res = await fetch('/api/settings/instagram', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ link })
+  });
+  if (!res.ok) throw new Error("HTTP error " + res.status);
+  
+  setLocalCache('cached_instagram_link', link);
 }
 
-// Seeding function if database is empty to ensure gorgeous initial experience
+// Seeding function (no-op client-side since database auto-seeds or seeded endpoint handles it)
 export async function seedInitialDataIfEmpty(): Promise<void> {
-  // Check if database has been seeded before using global settings flag
-  const globalRef = doc(db, 'settings', 'global');
-  const globalSnap = await getDoc(globalRef);
-  if (globalSnap.exists() && globalSnap.data().seeded === true) {
-    // Already seeded, do not overwrite/re-seed even if cities list is empty
-    return;
-  }
-
-  const citiesSnap = await getDocs(collection(db, 'cities'));
-  if (citiesSnap.empty) {
-    console.log("Seeding initial clean destinations...");
-    
-    // Seed Cities
-    const initialCities = [
-      {
-        id: "udaipur",
-        name: "Udaipur",
-        subtitle: "Local drivers available",
-        image: "https://images.unsplash.com/photo-1595658658481-d53d3f999875?w=800&auto=format&fit=crop&q=80"
-      },
-      {
-        id: "jaipur",
-        name: "Jaipur",
-        subtitle: "Local drivers available",
-        image: "https://images.unsplash.com/photo-1477587458883-47145ed94245?w=800&auto=format&fit=crop&q=80"
-      },
-      {
-        id: "jaisalmer",
-        name: "Jaisalmer",
-        subtitle: "Local drivers available",
-        image: "https://images.unsplash.com/photo-1599661046289-e31897846e41?w=800&auto=format&fit=crop&q=80"
-      },
-      {
-        id: "jodhpur",
-        name: "Jodhpur",
-        subtitle: "Local drivers available",
-        image: "https://images.unsplash.com/photo-1588083949474-77b70e342b36?w=800&auto=format&fit=crop&q=80"
-      },
-      {
-        id: "goa",
-        name: "Goa",
-        subtitle: "Local drivers available",
-        image: "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=800&auto=format&fit=crop&q=80"
-      },
-      {
-        id: "shillong",
-        name: "Shillong",
-        subtitle: "Local drivers available",
-        image: "https://images.unsplash.com/photo-1626621341517-bbf3d9990a23?w=800&auto=format&fit=crop&q=80"
-      },
-      {
-        id: "guwahati",
-        name: "Guwahati",
-        subtitle: "Local drivers available",
-        image: "https://images.unsplash.com/photo-1605649487212-47bdab064df7?w=800&auto=format&fit=crop&q=80"
-      },
-      {
-        id: "kerala",
-        name: "Kerala",
-        subtitle: "Local drivers available",
-        image: "https://images.unsplash.com/photo-1602216056096-3b40cc0c9944?w=800&auto=format&fit=crop&q=80"
-      }
-    ];
-
-    for (const city of initialCities) {
-      await addCity(city);
-    }
-
-    // Seed Drivers for Goa
-    await addDoc(collection(db, 'drivers'), {
-      cityId: "goa",
-      name: "Sunil Yadav Travels",
-      vehicleName: "Force Traveller 12+1",
-      vehicleType: "Tempo Traveller",
-      experience: 10,
-      phone: "+919928237000",
-      plateNumber: "GA-03-TA-8445",
-      images: [
-        "https://images.unsplash.com/photo-1533473359331-0135ef1b58bf?w=600&auto=format&fit=crop&q=80",
-        "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?w=600&auto=format&fit=crop&q=80"
-      ],
-      clicks: 124,
-      monthlyClicks: 42,
-      createdAt: new Date().toISOString()
-    });
-
-    await addDoc(collection(db, 'drivers'), {
-      cityId: "goa",
-      name: "Deepak Verma Cabs",
-      vehicleName: "Skoda Slavia",
-      vehicleType: "Sedan",
-      experience: 4,
-      phone: "+919928237004",
-      plateNumber: "GA-03-TA-1223",
-      images: [
-        "https://images.unsplash.com/photo-1617788138017-80ad40651399?w=600&auto=format&fit=crop&q=80",
-        "https://images.unsplash.com/photo-1511919884226-fd3cad34687c?w=600&auto=format&fit=crop&q=80"
-      ],
-      clicks: 89,
-      monthlyClicks: 31,
-      createdAt: new Date().toISOString()
-    });
-
-    // Seed Drivers for Kashmir
-    await addDoc(collection(db, 'drivers'), {
-      cityId: "kashmir",
-      name: "Gateway Taxi Srinagar",
-      vehicleName: "Maruti Dzire",
-      vehicleType: "Sedan",
-      experience: 3,
-      phone: "+919928237445",
-      plateNumber: "JK-01-TA-4321",
-      images: [
-        "https://images.unsplash.com/photo-1617788138017-80ad40651399?w=600&auto=format&fit=crop&q=80",
-        "https://images.unsplash.com/photo-1511919884226-fd3cad34687c?w=600&auto=format&fit=crop&q=80"
-      ],
-      clicks: 156,
-      monthlyClicks: 54,
-      createdAt: new Date().toISOString()
-    });
-
-    // Set Default settings with seeded flag
-    await setDoc(doc(db, 'settings', 'global'), {
-      instagramLink: 'https://instagram.com/localtaxiwala',
-      seeded: true
-    }, { merge: true });
-
-    // Seed default vehicle categories
-    const defaultCategories = ['Sedan', 'SUV', 'Tempo Traveller'];
-    for (const cat of defaultCategories) {
-      await addVehicleCategory(cat);
-    }
-  } else {
-    // Already has data, mark as seeded so future empty states do not trigger auto-seeding
-    await setDoc(doc(db, 'settings', 'global'), {
-      seeded: true
-    }, { merge: true });
-
-    // If not empty, still ensure basic categories are seeded so existing setups don't have empty options
-    const categoriesSnap = await getDocs(collection(db, 'vehicleCategories'));
-    if (categoriesSnap.empty) {
-      const defaultCategories = ['Sedan', 'SUV', 'Tempo Traveller'];
-      for (const cat of defaultCategories) {
-        await addVehicleCategory(cat);
-      }
-    }
-  }
+  // Database runs on full-stack server now, seeding is handled automatically or by backend.
 }
 
-// Force restore default cities if they were completely deleted
+// Force restore default cities
 export async function forceSeedDefaultData(): Promise<void> {
-  // Clear any existing cities first so there's no duplicates
-  const citiesSnap = await getDocs(collection(db, 'cities'));
-  for (const docSnap of citiesSnap.docs) {
-    await deleteDoc(docSnap.ref);
-  }
-
-  const initialCities = [
-    {
-      id: "udaipur",
-      name: "Udaipur",
-      subtitle: "Local drivers available",
-      image: "https://images.unsplash.com/photo-1595658658481-d53d3f999875?w=800&auto=format&fit=crop&q=80"
-    },
-    {
-      id: "jaipur",
-      name: "Jaipur",
-      subtitle: "Local drivers available",
-      image: "https://images.unsplash.com/photo-1477587458883-47145ed94245?w=800&auto=format&fit=crop&q=80"
-    },
-    {
-      id: "jaisalmer",
-      name: "Jaisalmer",
-      subtitle: "Local drivers available",
-      image: "https://images.unsplash.com/photo-1599661046289-e31897846e41?w=800&auto=format&fit=crop&q=80"
-    },
-    {
-      id: "jodhpur",
-      name: "Jodhpur",
-      subtitle: "Local drivers available",
-      image: "https://images.unsplash.com/photo-1588083949474-77b70e342b36?w=800&auto=format&fit=crop&q=80"
-    },
-    {
-      id: "goa",
-      name: "Goa",
-      subtitle: "Local drivers available",
-      image: "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=800&auto=format&fit=crop&q=80"
-    },
-    {
-      id: "shillong",
-      name: "Shillong",
-      subtitle: "Local drivers available",
-      image: "https://images.unsplash.com/photo-1626621341517-bbf3d9990a23?w=800&auto=format&fit=crop&q=80"
-    },
-    {
-      id: "guwahati",
-      name: "Guwahati",
-      subtitle: "Local drivers available",
-      image: "https://images.unsplash.com/photo-1605649487212-47bdab064df7?w=800&auto=format&fit=crop&q=80"
-    },
-    {
-      id: "kerala",
-      name: "Kerala",
-      subtitle: "Local drivers available",
-      image: "https://images.unsplash.com/photo-1602216056096-3b40cc0c9944?w=800&auto=format&fit=crop&q=80"
-    }
-  ];
-
-  for (const city of initialCities) {
-    await addCity(city);
-  }
-
-  // Set Default settings with seeded: true
-  await setDoc(doc(db, 'settings', 'global'), {
-    instagramLink: 'https://instagram.com/localtaxiwala',
-    seeded: true
-  }, { merge: true });
-
-  // Ensure default categories exist
-  const categoriesSnap = await getDocs(collection(db, 'vehicleCategories'));
-  if (categoriesSnap.empty) {
-    const defaultCategories = ['Sedan', 'SUV', 'Tempo Traveller'];
-    for (const cat of defaultCategories) {
-      await addVehicleCategory(cat);
-    }
-  }
+  const res = await fetch('/api/settings/seed-default', {
+    method: 'POST'
+  });
+  if (!res.ok) throw new Error("HTTP error " + res.status);
 }
-
