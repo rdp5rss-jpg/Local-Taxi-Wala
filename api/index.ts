@@ -1,8 +1,7 @@
 import express from 'express';
 import { MongoClient, ObjectId } from 'mongodb';
 
-const app = express();
-app.use(express.json());
+const router = express.Router();
 
 const mongoUri = process.env.MONGODB_URI || "mongodb+srv://hellolocaltaxiwala_db_user:L8qGrS5xD4fxQX3p@cluster0.raat06y.mongodb.net";
 const dbName = "localtaxiwala";
@@ -21,7 +20,7 @@ async function getDb() {
 }
 
 // 1. Status Connection check
-app.get('/api/status', async (req, res) => {
+router.get('/status', async (req, res) => {
   try {
     const db = await getDb();
     await db.command({ ping: 1 });
@@ -40,7 +39,7 @@ app.get('/api/status', async (req, res) => {
 });
 
 // 2. Cities endpoints
-app.get('/api/cities', async (req, res) => {
+router.get('/cities', async (req, res) => {
   try {
     const db = await getDb();
     const cities = await db.collection('cities').find().toArray();
@@ -50,7 +49,7 @@ app.get('/api/cities', async (req, res) => {
   }
 });
 
-app.post('/api/cities', async (req, res) => {
+router.post('/cities', async (req, res) => {
   try {
     const db = await getDb();
     const city = req.body;
@@ -73,7 +72,7 @@ app.post('/api/cities', async (req, res) => {
   }
 });
 
-app.delete('/api/cities/:id', async (req, res) => {
+router.delete('/cities/:id', async (req, res) => {
   try {
     const db = await getDb();
     const cityId = req.params.id;
@@ -86,7 +85,7 @@ app.delete('/api/cities/:id', async (req, res) => {
 });
 
 // 3. Drivers endpoints
-app.get('/api/drivers', async (req, res) => {
+router.get('/drivers', async (req, res) => {
   try {
     const db = await getDb();
     const cityId = req.query.cityId as string;
@@ -108,7 +107,7 @@ app.get('/api/drivers', async (req, res) => {
   }
 });
 
-app.get('/api/drivers/all', async (req, res) => {
+router.get('/drivers/all', async (req, res) => {
   try {
     const db = await getDb();
     const drivers = await db.collection('drivers').find().toArray();
@@ -118,7 +117,8 @@ app.get('/api/drivers/all', async (req, res) => {
   }
 });
 
-app.post('/api/drivers', async (req, res) => {
+router.post('/drivers', async (req, res) => {
+  console.log("POST /api/drivers called with body size:", JSON.stringify(req.body).length);
   try {
     const db = await getDb();
     const driver = req.body;
@@ -138,19 +138,22 @@ app.post('/api/drivers', async (req, res) => {
       createdAt: driver.createdAt || new Date().toISOString()
     };
 
-    await db.collection('drivers').updateOne(
+    console.log("Saving driver to MongoDB:", driverId);
+    const result = await db.collection('drivers').updateOne(
       { _id: driverId as any },
       { $set: docToSave },
       { upsert: true }
     );
+    console.log("MongoDB update result:", JSON.stringify(result));
 
     res.json({ success: true, id: driverId });
   } catch (err: any) {
+    console.error("Error in POST /api/drivers:", err);
     res.status(500).json({ error: err.message });
   }
 });
 
-app.delete('/api/drivers/:id', async (req, res) => {
+router.delete('/drivers/:id', async (req, res) => {
   try {
     const db = await getDb();
     await db.collection('drivers').deleteOne({ _id: req.params.id as any });
@@ -160,7 +163,7 @@ app.delete('/api/drivers/:id', async (req, res) => {
   }
 });
 
-app.post('/api/drivers/:id/click', async (req, res) => {
+router.post('/drivers/:id/click', async (req, res) => {
   try {
     const db = await getDb();
     await db.collection('drivers').updateOne(
@@ -176,7 +179,7 @@ app.post('/api/drivers/:id/click', async (req, res) => {
 });
 
 // 4. Inquiries endpoints
-app.get('/api/inquiries', async (req, res) => {
+router.get('/inquiries', async (req, res) => {
   try {
     const db = await getDb();
     const inquiries = await db.collection('inquiries').find().sort({ createdAt: -1 }).toArray();
@@ -186,7 +189,7 @@ app.get('/api/inquiries', async (req, res) => {
   }
 });
 
-app.post('/api/inquiries', async (req, res) => {
+router.post('/inquiries', async (req, res) => {
   try {
     const db = await getDb();
     const inquiry = req.body;
@@ -202,7 +205,7 @@ app.post('/api/inquiries', async (req, res) => {
   }
 });
 
-app.delete('/api/inquiries/:id', async (req, res) => {
+router.delete('/inquiries/:id', async (req, res) => {
   try {
     const db = await getDb();
     await db.collection('inquiries').deleteOne({ _id: req.params.id as any });
@@ -213,7 +216,7 @@ app.delete('/api/inquiries/:id', async (req, res) => {
 });
 
 // 5. Vehicle Categories endpoints
-app.get('/api/categories', async (req, res) => {
+router.get('/categories', async (req, res) => {
   try {
     const db = await getDb();
     const categories = await db.collection('vehicleCategories').find().toArray();
@@ -223,7 +226,7 @@ app.get('/api/categories', async (req, res) => {
   }
 });
 
-app.post('/api/categories', async (req, res) => {
+router.post('/categories', async (req, res) => {
   try {
     const db = await getDb();
     const { name } = req.body;
@@ -240,7 +243,7 @@ app.post('/api/categories', async (req, res) => {
   }
 });
 
-app.delete('/api/categories/:id', async (req, res) => {
+router.delete('/categories/:id', async (req, res) => {
   try {
     const db = await getDb();
     await db.collection('vehicleCategories').deleteOne({ _id: req.params.id as any });
@@ -251,7 +254,7 @@ app.delete('/api/categories/:id', async (req, res) => {
 });
 
 // 6. Settings endpoints
-app.get('/api/settings/instagram', async (req, res) => {
+router.get('/settings/instagram', async (req, res) => {
   try {
     const db = await getDb();
     const doc = await db.collection('settings').findOne({ _id: "global" as any });
@@ -261,7 +264,7 @@ app.get('/api/settings/instagram', async (req, res) => {
   }
 });
 
-app.post('/api/settings/instagram', async (req, res) => {
+router.post('/settings/instagram', async (req, res) => {
   try {
     const db = await getDb();
     const { link } = req.body;
@@ -282,7 +285,7 @@ app.post('/api/settings/instagram', async (req, res) => {
 });
 
 // 7. Seed defaults endpoint
-app.post('/api/settings/seed-default', async (req, res) => {
+router.post('/settings/seed-default', async (req, res) => {
   try {
     const db = await getDb();
     
@@ -320,5 +323,14 @@ app.post('/api/settings/seed-default', async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+
+const app = express();
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ limit: '50mb', extended: true }));
+
+// For Vercel, the handler is reached via /api/index.ts
+// We mount the router so it handles requests with or without /api prefix
+app.use('/api', router);
+app.use(router);
 
 export default app;

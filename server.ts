@@ -8,6 +8,7 @@ async function startServer() {
   const PORT = 3000;
 
   // Mount API endpoints
+  // apiApp already includes json() middleware and handles /api routes
   app.use(apiApp);
 
   // Vite middleware for development
