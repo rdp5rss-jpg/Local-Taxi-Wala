@@ -90,17 +90,35 @@ export function sortCities(cities: City[]): City[] {
   });
 }
 
+export const DEFAULT_CITIES: City[] = [
+  { id: "udaipur", name: "Udaipur", subtitle: "Local drivers available", image: "https://images.unsplash.com/photo-1595658658481-d53d3f999875?w=800&auto=format&fit=crop&q=80" },
+  { id: "jaipur", name: "Jaipur", subtitle: "Local drivers available", image: "https://images.unsplash.com/photo-1477587458883-47145ed94245?w=800&auto=format&fit=crop&q=80" },
+  { id: "jaisalmer", name: "Jaisalmer", subtitle: "Local drivers available", image: "https://images.unsplash.com/photo-1599661046289-e31897846e41?w=800&auto=format&fit=crop&q=80" },
+  { id: "jodhpur", name: "Jodhpur", subtitle: "Local drivers available", image: "https://images.unsplash.com/photo-1588083949474-77b70e342b36?w=800&auto=format&fit=crop&q=80" },
+  { id: "goa", name: "Goa", subtitle: "Local drivers available", image: "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=800&auto=format&fit=crop&q=80" },
+  { id: "shillong", name: "Shillong", subtitle: "Local drivers available", image: "https://images.unsplash.com/photo-1626621341517-bbf3d9990a23?w=800&auto=format&fit=crop&q=80" },
+  { id: "guwahati", name: "Guwahati", subtitle: "Local drivers available", image: "https://images.unsplash.com/photo-1605649487212-47bdab064df7?w=800&auto=format&fit=crop&q=80" },
+  { id: "kerala", name: "Kerala", subtitle: "Local drivers available", image: "https://images.unsplash.com/photo-1602216056096-3b40cc0c9944?w=800&auto=format&fit=crop&q=80" }
+];
+
 // 1. Fetch Cities
 export async function getCities(): Promise<City[]> {
   try {
     const res = await fetch('/api/cities');
     if (!res.ok) throw new Error("HTTP error " + res.status);
     const cities = await res.json() as City[];
-    setLocalCache('cached_cities', cities);
-    return cities;
+    if (cities.length > 0) {
+      setLocalCache('cached_cities', cities);
+      return sortCities(cities);
+    }
+    const cached = getLocalCache<City[]>('cached_cities', []);
+    if (cached.length > 0) return sortCities(cached);
+    return sortCities(DEFAULT_CITIES);
   } catch (err) {
-    console.warn("API error in getCities, loading from cache...", err);
-    return getLocalCache<City[]>('cached_cities', []);
+    console.warn("API error in getCities, loading from cache/defaults...", err);
+    const cached = getLocalCache<City[]>('cached_cities', []);
+    if (cached.length > 0) return sortCities(cached);
+    return sortCities(DEFAULT_CITIES);
   }
 }
 
@@ -148,11 +166,46 @@ export async function getDrivers(cityId: string): Promise<Driver[]> {
     const res = await fetch(`/api/drivers?cityId=${cityId}`);
     if (!res.ok) throw new Error("HTTP error " + res.status);
     const drivers = await res.json() as Driver[];
-    setLocalCache(`cached_drivers_${cityId}`, drivers);
-    return drivers;
+    if (drivers.length > 0) {
+      setLocalCache(`cached_drivers_${cityId}`, drivers);
+      return drivers;
+    }
+    const cached = getLocalCache<Driver[]>(`cached_drivers_${cityId}`, []);
+    if (cached.length > 0) return cached;
+    return [
+      {
+        id: `default_${cityId}_1`,
+        cityId: cityId,
+        name: "Verified Local Driver",
+        vehicleName: "Toyota Innova / Dzire",
+        vehicleType: "Sedan",
+        experience: 5,
+        phone: "+919829408822",
+        plateNumber: "RJ 27 AB 1234",
+        images: ["https://images.unsplash.com/photo-1549399542-7e3f8b79c341?w=800&auto=format&fit=crop&q=80"],
+        clicks: 5,
+        monthlyClicks: 2
+      }
+    ];
   } catch (err) {
-    console.warn(`API error in getDrivers for ${cityId}, loading from cache...`, err);
-    return getLocalCache<Driver[]>(`cached_drivers_${cityId}`, []);
+    console.warn(`API error in getDrivers for ${cityId}, loading from cache/defaults...`, err);
+    const cached = getLocalCache<Driver[]>(`cached_drivers_${cityId}`, []);
+    if (cached.length > 0) return cached;
+    return [
+      {
+        id: `default_${cityId}_1`,
+        cityId: cityId,
+        name: "Verified Local Driver",
+        vehicleName: "Toyota Innova / Dzire",
+        vehicleType: "Sedan",
+        experience: 5,
+        phone: "+919829408822",
+        plateNumber: "RJ 27 AB 1234",
+        images: ["https://images.unsplash.com/photo-1549399542-7e3f8b79c341?w=800&auto=format&fit=crop&q=80"],
+        clicks: 5,
+        monthlyClicks: 2
+      }
+    ];
   }
 }
 
