@@ -30,6 +30,7 @@ export default function App() {
   const [categories, setCategories] = useState<VehicleCategory[]>([]);
   const [instagramLink, setInstagramLink] = useState('https://instagram.com/localtaxiwala');
   const [loading, setLoading] = useState(true);
+  const [driversLoading, setDriversLoading] = useState(false);
 
   // Filter and selection states
   const [vehicleFilter, setVehicleFilter] = useState<string>('All');
@@ -83,34 +84,36 @@ export default function App() {
   // Parse path to check if we are viewing a specific city
   // E.g., /goa -> Goa drivers
   const cleanedPath = currentPath.slice(1).toLowerCase().trim();
-  const activeCity = cities.find((c) => c.id === cleanedPath) || null;
+  const activeCity = cities.find((c) => (c.id || '').trim().toLowerCase() === cleanedPath) || null;
 
   // Load drivers of the active city whenever path changes
   useEffect(() => {
     if (activeCity) {
+      let isSubscribed = true;
       const loadCityDrivers = async () => {
+        setDriversLoading(true);
         try {
           const fetchedDrivers = await getDrivers(activeCity.id);
-          setActiveDrivers(fetchedDrivers);
+          if (isSubscribed) {
+            setActiveDrivers(fetchedDrivers);
+          }
         } catch (err) {
           console.error("Failed to load drivers", err);
+        } finally {
+          if (isSubscribed) {
+            setDriversLoading(false);
+          }
         }
       };
       loadCityDrivers();
+      return () => {
+        isSubscribed = false;
+      };
+    } else {
+      setActiveDrivers([]);
+      setDriversLoading(false);
     }
-  }, [activeCity]);
-
-  // Default to Sedan filter when activeCity changes or drivers load
-  useEffect(() => {
-    if (activeCity) {
-      if (activeDrivers.length > 0) {
-        const hasSedan = activeDrivers.some((d) => d.vehicleType?.toLowerCase() === 'sedan');
-        setVehicleFilter(hasSedan ? 'Sedan' : 'All');
-      } else {
-        setVehicleFilter('Sedan');
-      }
-    }
-  }, [activeCity?.id, activeDrivers.length]);
+  }, [activeCity?.id]);
 
   // Handle share parameters from URL search query (e.g. ?driver=xyz)
   useEffect(() => {
@@ -128,8 +131,8 @@ export default function App() {
   }, [activeCity, activeDrivers]);
 
   const handleSelectCity = (cityId: string) => {
-    setVehicleFilter('Sedan'); // Select Sedan by default when opening a city
-    navigate(`/${cityId}`);
+    setVehicleFilter('All'); // Show all verified drivers by default so users see cabs immediately
+    navigate(`/${cityId.toLowerCase().trim()}`);
   };
 
   const handleBackToCities = () => {
@@ -161,9 +164,13 @@ export default function App() {
   };
 
   // Filter operational drivers for selected category
-  const filteredDrivers = activeDrivers.filter(
-    (driver) => vehicleFilter === 'All' || driver.vehicleType === vehicleFilter
-  );
+  const filteredDrivers = activeDrivers.filter((driver) => {
+    if (!vehicleFilter || vehicleFilter === 'All') return true;
+    const filterClean = vehicleFilter.trim().toLowerCase();
+    const typeClean = (driver.vehicleType || '').trim().toLowerCase();
+    const nameClean = (driver.vehicleName || '').trim().toLowerCase();
+    return typeClean === filterClean || typeClean.includes(filterClean) || nameClean.includes(filterClean);
+  });
 
   // Check if we are on secondary administration or partner registration page
   const isAdminView = currentPath === '/admin' || currentPath === '/admin882' || currentPath.startsWith('/admin');
@@ -276,14 +283,33 @@ export default function App() {
                 </div>
 
                 {/* Categories Row scrollable in a single horizontal line, no wraps */}
-                <div className="mb-8 overflow-x-auto whitespace-nowrap scrollbar-none flex gap-2.5 pb-3 border-b border-slate-200/50 flex-nowrap">
+                <div className="mb-6 overflow-x-auto whitespace-nowrap scrollbar-none flex gap-2.5 pb-2 border-b border-slate-200/50 flex-nowrap items-center">
+                  <button
+                    onClick={() => setVehicleFilter('All')}
+                    className={`px-4 py-2 rounded-full text-xs sm:text-sm font-bold flex items-center gap-1.5 transition-all select-none cursor-pointer shadow-sm border shrink-0 ${
+                      vehicleFilter === 'All'
+                        ? 'bg-amber-500 border-amber-500 text-slate-950 shadow-md font-black'
+                        : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+                    }`}
+                  >
+                    <Car className="w-3.5 h-3.5 shrink-0" />
+                    <span>All Cabs {!driversLoading && activeDrivers.length > 0 ? `(${activeDrivers.length})` : ''}</span>
+                  </button>
+
                   {categories
                     .filter((cat) => {
                       const lower = cat.name.toLowerCase().trim();
                       return lower !== 'all' && lower !== 'all cars' && lower !== 'audi';
                     })
                     .map((cat) => {
-                      const isActive = vehicleFilter === cat.name;
+                      const isActive = vehicleFilter.trim().toLowerCase() === cat.name.trim().toLowerCase();
+                      const categoryCount = activeDrivers.filter((d) => {
+                        const t = (d.vehicleType || '').trim().toLowerCase();
+                        const n = (d.vehicleName || '').trim().toLowerCase();
+                        const c = cat.name.trim().toLowerCase();
+                        return t === c || t.includes(c) || n.includes(c);
+                      }).length;
+
                       return (
                         <button
                           key={cat.id}
@@ -295,14 +321,20 @@ export default function App() {
                           }`}
                         >
                           <Car className="w-3.5 h-3.5 shrink-0" />
-                          <span>{cat.name}</span>
+                          <span>{cat.name} {!driversLoading && categoryCount > 0 ? `(${categoryCount})` : ''}</span>
                         </button>
                       );
                     })}
                 </div>
 
-                {/* Drivers Cards Grid */}
-                {filteredDrivers.length > 0 ? (
+                {/* Drivers Cards Grid or Loading Skeleton */}
+                {driversLoading ? (
+                  <div className="py-16 text-center max-w-md mx-auto">
+                    <div className="w-10 h-10 border-4 border-amber-500 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+                    <h4 className="font-bold text-slate-800 text-base">Finding verified drivers in {activeCity.name}...</h4>
+                    <p className="text-xs text-slate-400 mt-1">Connecting directly to local taxi owners</p>
+                  </div>
+                ) : filteredDrivers.length > 0 ? (
                   <motion.div 
                     layout
                     className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-6"
@@ -321,15 +353,15 @@ export default function App() {
                 ) : (
                   <div className="py-16 text-center bg-white rounded-2xl border border-slate-100 shadow-sm max-w-md mx-auto">
                     <HelpCircle className="w-11 h-11 text-slate-300 mx-auto mb-3" />
-                    <h4 className="font-bold text-slate-800 text-sm">No drivers match this filter</h4>
+                    <h4 className="font-bold text-slate-800 text-sm">No {vehicleFilter !== 'All' ? vehicleFilter : ''} drivers match this filter</h4>
                     <p className="text-xs text-slate-400 mt-1 max-w-xs mx-auto">
-                      Try selecting another category above to see our active direct cab listings.
+                      Try selecting another category or view all verified cabs in {activeCity.name}.
                     </p>
                     <button
                       onClick={() => setVehicleFilter('All')}
-                      className="mt-4 px-4 py-2 bg-slate-900 text-white rounded-xl text-xs font-bold hover:bg-slate-800 transition-colors"
+                      className="mt-4 px-4 py-2 bg-slate-900 text-white rounded-xl text-xs font-bold hover:bg-slate-800 transition-colors cursor-pointer"
                     >
-                      Clear Category Filter
+                      Show All {activeCity.name} Cabs ({activeDrivers.length})
                     </button>
                   </div>
                 )}

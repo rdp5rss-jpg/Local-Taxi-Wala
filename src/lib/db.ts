@@ -51,10 +51,60 @@ function getLocalCache<T>(key: string, defaultValue: T): T {
 
 function setLocalCache<T>(key: string, value: T): void {
   try {
-    localStorage.setItem(key, JSON.stringify(value));
+    const serialized = JSON.stringify(value);
+    // Avoid exceeding browser localStorage 5MB quota on mobile
+    if (serialized.length > 1000000) {
+      return;
+    }
+    localStorage.setItem(key, serialized);
   } catch (e) {
-    console.error("Local storage write error:", e);
+    console.warn("Local storage write skipped:", e);
   }
+}
+
+function getFallbackDriversForCity(cityId: string): Driver[] {
+  const cleanId = (cityId || '').trim().toLowerCase();
+  return [
+    {
+      id: `default_${cleanId}_1`,
+      cityId: cleanId,
+      name: "Verified Local Driver",
+      vehicleName: "Swift Dzire / Etios",
+      vehicleType: "Sedan",
+      experience: 6,
+      phone: "+919829408822",
+      plateNumber: "Verified Cab",
+      images: ["https://images.unsplash.com/photo-1549399542-7e3f8b79c341?w=800&auto=format&fit=crop&q=80"],
+      clicks: 14,
+      monthlyClicks: 5
+    },
+    {
+      id: `default_${cleanId}_2`,
+      cityId: cleanId,
+      name: "Highway & City Tours",
+      vehicleName: "Toyota Innova Crysta",
+      vehicleType: "SUV",
+      experience: 8,
+      phone: "+919829408822",
+      plateNumber: "Verified Cab",
+      images: ["https://images.unsplash.com/photo-1533473359331-0135ef1b58bf?w=800&auto=format&fit=crop&q=80"],
+      clicks: 21,
+      monthlyClicks: 8
+    },
+    {
+      id: `default_${cleanId}_3`,
+      cityId: cleanId,
+      name: "Royal Group Holidays",
+      vehicleName: "Force Tempo Traveller",
+      vehicleType: "Tempo Traveller",
+      experience: 10,
+      phone: "+919829408822",
+      plateNumber: "Verified Cab",
+      images: ["https://images.unsplash.com/photo-1570125909232-eb263c188f7e?w=800&auto=format&fit=crop&q=80"],
+      clicks: 11,
+      monthlyClicks: 4
+    }
+  ];
 }
 
 export const PREFERRED_CITY_ORDER: string[] = [
@@ -162,50 +212,23 @@ export async function deleteCity(cityId: string): Promise<void> {
 
 // 4. Fetch Drivers for a City
 export async function getDrivers(cityId: string): Promise<Driver[]> {
+  const cleanId = (cityId || '').trim().toLowerCase();
   try {
-    const res = await fetch(`/api/drivers?cityId=${cityId}`);
+    const res = await fetch(`/api/drivers?cityId=${encodeURIComponent(cleanId)}`);
     if (!res.ok) throw new Error("HTTP error " + res.status);
     const drivers = await res.json() as Driver[];
-    if (drivers.length > 0) {
-      setLocalCache(`cached_drivers_${cityId}`, drivers);
+    if (drivers && drivers.length > 0) {
+      setLocalCache(`cached_drivers_${cleanId}`, drivers);
       return drivers;
     }
-    const cached = getLocalCache<Driver[]>(`cached_drivers_${cityId}`, []);
-    if (cached.length > 0) return cached;
-    return [
-      {
-        id: `default_${cityId}_1`,
-        cityId: cityId,
-        name: "Verified Local Driver",
-        vehicleName: "Toyota Innova / Dzire",
-        vehicleType: "Sedan",
-        experience: 5,
-        phone: "+919829408822",
-        plateNumber: "RJ 27 AB 1234",
-        images: ["https://images.unsplash.com/photo-1549399542-7e3f8b79c341?w=800&auto=format&fit=crop&q=80"],
-        clicks: 5,
-        monthlyClicks: 2
-      }
-    ];
+    const cached = getLocalCache<Driver[]>(`cached_drivers_${cleanId}`, []);
+    if (cached && cached.length > 0) return cached;
+    return getFallbackDriversForCity(cleanId);
   } catch (err) {
-    console.warn(`API error in getDrivers for ${cityId}, loading from cache/defaults...`, err);
-    const cached = getLocalCache<Driver[]>(`cached_drivers_${cityId}`, []);
-    if (cached.length > 0) return cached;
-    return [
-      {
-        id: `default_${cityId}_1`,
-        cityId: cityId,
-        name: "Verified Local Driver",
-        vehicleName: "Toyota Innova / Dzire",
-        vehicleType: "Sedan",
-        experience: 5,
-        phone: "+919829408822",
-        plateNumber: "RJ 27 AB 1234",
-        images: ["https://images.unsplash.com/photo-1549399542-7e3f8b79c341?w=800&auto=format&fit=crop&q=80"],
-        clicks: 5,
-        monthlyClicks: 2
-      }
-    ];
+    console.warn(`API error in getDrivers for ${cleanId}, loading from cache/defaults...`, err);
+    const cached = getLocalCache<Driver[]>(`cached_drivers_${cleanId}`, []);
+    if (cached && cached.length > 0) return cached;
+    return getFallbackDriversForCity(cleanId);
   }
 }
 

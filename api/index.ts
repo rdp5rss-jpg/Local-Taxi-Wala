@@ -1,5 +1,7 @@
 import express from 'express';
 import { MongoClient, ObjectId } from 'mongodb';
+import cors from 'cors';
+import compression from 'compression';
 
 const router = express.Router();
 
@@ -182,7 +184,12 @@ router.get('/cities', async (req, res) => {
   try {
     const db = await getDb();
     const cities = await db.collection('cities').find().toArray();
-    res.json(cities.map(c => ({ id: c._id, ...c, _id: undefined })));
+    res.json(cities.map(c => ({
+      id: (c._id || c.id || '').toString().trim().toLowerCase(),
+      name: (c.name || '').toString().trim(),
+      subtitle: (c.subtitle || 'Local drivers available').toString().trim(),
+      image: c.image || ''
+    })));
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
@@ -192,13 +199,14 @@ router.post('/cities', async (req, res) => {
   try {
     const db = await getDb();
     const city = req.body;
-    const cleanId = city.id.toLowerCase().trim();
+    const cleanId = (city.id || '').toString().toLowerCase().trim();
+    const cleanName = (city.name || '').toString().trim();
     await db.collection('cities').updateOne(
       { _id: cleanId as any },
       {
         $set: {
-          name: city.name,
-          subtitle: city.subtitle || "Local drivers available",
+          name: cleanName,
+          subtitle: (city.subtitle || "Local drivers available").toString().trim(),
           image: city.image,
           createdAt: new Date().toISOString()
         }
@@ -214,7 +222,7 @@ router.post('/cities', async (req, res) => {
 router.delete('/cities/:id', async (req, res) => {
   try {
     const db = await getDb();
-    const cityId = req.params.id;
+    const cityId = (req.params.id || '').toString().trim().toLowerCase();
     await db.collection('cities').deleteOne({ _id: cityId as any });
     await db.collection('drivers').deleteMany({ cityId: cityId });
     res.json({ success: true });
@@ -227,12 +235,31 @@ router.delete('/cities/:id', async (req, res) => {
 router.get('/drivers', async (req, res) => {
   try {
     const db = await getDb();
-    const cityId = req.query.cityId as string;
-    const filter = cityId ? { cityId } : {};
+    const rawCityId = (req.query.cityId as string) || '';
+    const cleanCityId = rawCityId.trim().toLowerCase();
+    
+    // Robust filter: match trimmed lowercase cityId case-insensitively
+    const filter = cleanCityId
+      ? {
+          $or: [
+            { cityId: cleanCityId },
+            { cityId: { $regex: new RegExp(`^\\s*${cleanCityId}\\s*$`, 'i') } }
+          ]
+        }
+      : {};
+
     const drivers = await db.collection('drivers').find(filter).toArray();
     
-    // Map _id to id
-    const mapped = drivers.map(d => ({ id: d._id, ...d, _id: undefined }));
+    // Map and normalize fields
+    const mapped = drivers.map(d => ({
+      ...d,
+      id: (d._id || d.id || '').toString(),
+      cityId: (d.cityId || '').toString().trim().toLowerCase(),
+      name: (d.name || '').toString().trim(),
+      vehicleType: (d.vehicleType || '').toString().trim(),
+      vehicleName: (d.vehicleName || '').toString().trim(),
+      _id: undefined
+    }));
     
     // Shuffle drivers to give equal business lead chances
     for (let i = mapped.length - 1; i > 0; i--) {
@@ -250,7 +277,15 @@ router.get('/drivers/all', async (req, res) => {
   try {
     const db = await getDb();
     const drivers = await db.collection('drivers').find().toArray();
-    res.json(drivers.map(d => ({ id: d._id, ...d, _id: undefined })));
+    res.json(drivers.map(d => ({
+      ...d,
+      id: (d._id || d.id || '').toString(),
+      cityId: (d.cityId || '').toString().trim().toLowerCase(),
+      name: (d.name || '').toString().trim(),
+      vehicleType: (d.vehicleType || '').toString().trim(),
+      vehicleName: (d.vehicleName || '').toString().trim(),
+      _id: undefined
+    })));
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
@@ -464,6 +499,8 @@ router.post('/settings/seed-default', async (req, res) => {
 });
 
 const app = express();
+app.use(cors());
+app.use(compression());
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
