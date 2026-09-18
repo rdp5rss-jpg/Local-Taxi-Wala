@@ -20,6 +20,35 @@ import {
 import { ArrowLeft, Car, HelpCircle, Instagram } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
+interface VehicleCategoryOption {
+  key: string;
+  label: string;
+  mobileLabel: string;
+}
+
+const VEHICLE_CATEGORIES: VehicleCategoryOption[] = [
+  { key: 'Sedan', label: 'Sedan', mobileLabel: 'Sedan' },
+  { key: 'SUV', label: 'SUV', mobileLabel: 'SUV' },
+  { key: 'Tempo', label: 'Tempo Traveller', mobileLabel: 'Tempo' },
+];
+
+function matchesCategory(driver: Driver, categoryKey: string): boolean {
+  const type = (driver.vehicleType || '').trim().toLowerCase();
+  const name = (driver.vehicleName || '').trim().toLowerCase();
+  const key = categoryKey.trim().toLowerCase();
+
+  if (key === 'sedan') {
+    return type === 'sedan' || type.includes('sedan') || name.includes('sedan') || name.includes('dzire') || name.includes('etios');
+  }
+  if (key === 'suv') {
+    return type === 'suv' || type.includes('suv') || name.includes('suv') || name.includes('innova') || name.includes('scorpio') || name.includes('ertiga') || name.includes('crysta');
+  }
+  if (key === 'tempo' || key === 'tempo traveller') {
+    return type.includes('tempo') || type.includes('traveller') || name.includes('tempo') || name.includes('traveller');
+  }
+  return type === key || type.includes(key) || name.includes(key);
+}
+
 export default function App() {
   // Navigation / Custom SPA routing state
   const [currentPath, setCurrentPath] = useState(window.location.pathname);
@@ -32,8 +61,8 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [driversLoading, setDriversLoading] = useState(false);
 
-  // Filter and selection states
-  const [vehicleFilter, setVehicleFilter] = useState<string>('All');
+  // Filter and selection states: only Sedan, SUV, and Tempo
+  const [vehicleFilter, setVehicleFilter] = useState<string>('Sedan');
   const [shareDriver, setShareDriver] = useState<Driver | null>(null);
   const [cityNameForShare, setCityNameForShare] = useState('');
   const [activeInfoModal, setActiveInfoModal] = useState<InfoModalType>(null);
@@ -130,8 +159,23 @@ export default function App() {
     }
   }, [activeCity, activeDrivers]);
 
+  // Ensure the selected vehicle category has drivers for this city, or auto-switch
+  useEffect(() => {
+    if (activeDrivers.length > 0) {
+      const hasCurrent = activeDrivers.some((d) => matchesCategory(d, vehicleFilter));
+      if (!hasCurrent) {
+        const availableCategory = VEHICLE_CATEGORIES.find((cat) =>
+          activeDrivers.some((d) => matchesCategory(d, cat.key))
+        );
+        if (availableCategory) {
+          setVehicleFilter(availableCategory.key);
+        }
+      }
+    }
+  }, [activeDrivers]);
+
   const handleSelectCity = (cityId: string) => {
-    setVehicleFilter('All'); // Show all verified drivers by default so users see cabs immediately
+    setVehicleFilter('Sedan'); // Default to Sedan
     navigate(`/${cityId.toLowerCase().trim()}`);
   };
 
@@ -163,13 +207,9 @@ export default function App() {
     }
   };
 
-  // Filter operational drivers for selected category
+  // Filter operational drivers for selected category (Sedan, SUV, or Tempo)
   const filteredDrivers = activeDrivers.filter((driver) => {
-    if (!vehicleFilter || vehicleFilter === 'All') return true;
-    const filterClean = vehicleFilter.trim().toLowerCase();
-    const typeClean = (driver.vehicleType || '').trim().toLowerCase();
-    const nameClean = (driver.vehicleName || '').trim().toLowerCase();
-    return typeClean === filterClean || typeClean.includes(filterClean) || nameClean.includes(filterClean);
+    return matchesCategory(driver, vehicleFilter);
   });
 
   // Check if we are on secondary administration or partner registration page
@@ -282,49 +322,32 @@ export default function App() {
                   </p>
                 </div>
 
-                {/* Categories Row scrollable in a single horizontal line, no wraps */}
-                <div className="mb-6 overflow-x-auto whitespace-nowrap scrollbar-none flex gap-2.5 pb-2 border-b border-slate-200/50 flex-nowrap items-center">
-                  <button
-                    onClick={() => setVehicleFilter('All')}
-                    className={`px-4 py-2 rounded-full text-xs sm:text-sm font-bold flex items-center gap-1.5 transition-all select-none cursor-pointer shadow-sm border shrink-0 ${
-                      vehicleFilter === 'All'
-                        ? 'bg-amber-500 border-amber-500 text-slate-950 shadow-md font-black'
-                        : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
-                    }`}
-                  >
-                    <Car className="w-3.5 h-3.5 shrink-0" />
-                    <span>All Cabs {!driversLoading && activeDrivers.length > 0 ? `(${activeDrivers.length})` : ''}</span>
-                  </button>
+                {/* 3 Categories Only: Sedan, SUV, and Tempo - 100% visible on mobile with ZERO horizontal scrolling */}
+                <div className="mb-6 grid grid-cols-3 gap-2 sm:gap-3 max-w-lg mx-auto">
+                  {VEHICLE_CATEGORIES.map((cat) => {
+                    const isActive = vehicleFilter.trim().toLowerCase() === cat.key.trim().toLowerCase();
+                    const categoryCount = activeDrivers.filter((d) => matchesCategory(d, cat.key)).length;
 
-                  {categories
-                    .filter((cat) => {
-                      const lower = cat.name.toLowerCase().trim();
-                      return lower !== 'all' && lower !== 'all cars' && lower !== 'audi';
-                    })
-                    .map((cat) => {
-                      const isActive = vehicleFilter.trim().toLowerCase() === cat.name.trim().toLowerCase();
-                      const categoryCount = activeDrivers.filter((d) => {
-                        const t = (d.vehicleType || '').trim().toLowerCase();
-                        const n = (d.vehicleName || '').trim().toLowerCase();
-                        const c = cat.name.trim().toLowerCase();
-                        return t === c || t.includes(c) || n.includes(c);
-                      }).length;
-
-                      return (
-                        <button
-                          key={cat.id}
-                          onClick={() => setVehicleFilter(isActive ? 'All' : cat.name)}
-                          className={`px-4 py-2 rounded-full text-xs sm:text-sm font-bold flex items-center gap-1.5 transition-all select-none cursor-pointer shadow-sm border shrink-0 ${
-                            isActive
-                              ? 'bg-amber-500 border-amber-500 text-slate-950 shadow-md font-black'
-                              : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
-                          }`}
-                        >
-                          <Car className="w-3.5 h-3.5 shrink-0" />
-                          <span>{cat.name} {!driversLoading && categoryCount > 0 ? `(${categoryCount})` : ''}</span>
-                        </button>
-                      );
-                    })}
+                    return (
+                      <button
+                        key={cat.key}
+                        id={`filter-${cat.key.toLowerCase()}`}
+                        onClick={() => setVehicleFilter(cat.key)}
+                        className={`px-2 sm:px-4 py-2.5 rounded-full text-xs sm:text-sm font-bold flex items-center justify-center gap-1 sm:gap-1.5 transition-all select-none cursor-pointer border ${
+                          isActive
+                            ? 'bg-amber-500 border-amber-500 text-slate-950 shadow-md font-black'
+                            : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50 shadow-sm'
+                        }`}
+                      >
+                        <Car className="w-3.5 h-3.5 shrink-0" />
+                        <span className="truncate">
+                          <span className="sm:hidden">{cat.mobileLabel}</span>
+                          <span className="hidden sm:inline">{cat.label}</span>
+                          {!driversLoading && categoryCount > 0 ? ` (${categoryCount})` : ''}
+                        </span>
+                      </button>
+                    );
+                  })}
                 </div>
 
                 {/* Drivers Cards Grid or Loading Skeleton */}
@@ -353,16 +376,21 @@ export default function App() {
                 ) : (
                   <div className="py-16 text-center bg-white rounded-2xl border border-slate-100 shadow-sm max-w-md mx-auto">
                     <HelpCircle className="w-11 h-11 text-slate-300 mx-auto mb-3" />
-                    <h4 className="font-bold text-slate-800 text-sm">No {vehicleFilter !== 'All' ? vehicleFilter : ''} drivers match this filter</h4>
+                    <h4 className="font-bold text-slate-800 text-sm">No {vehicleFilter} cabs currently in {activeCity.name}</h4>
                     <p className="text-xs text-slate-400 mt-1 max-w-xs mx-auto">
-                      Try selecting another category or view all verified cabs in {activeCity.name}.
+                      Check other available vehicle options in {activeCity.name}:
                     </p>
-                    <button
-                      onClick={() => setVehicleFilter('All')}
-                      className="mt-4 px-4 py-2 bg-slate-900 text-white rounded-xl text-xs font-bold hover:bg-slate-800 transition-colors cursor-pointer"
-                    >
-                      Show All {activeCity.name} Cabs ({activeDrivers.length})
-                    </button>
+                    <div className="flex justify-center gap-2 mt-4">
+                      {VEHICLE_CATEGORIES.filter((c) => c.key.toLowerCase() !== vehicleFilter.toLowerCase()).map((otherCat) => (
+                        <button
+                          key={otherCat.key}
+                          onClick={() => setVehicleFilter(otherCat.key)}
+                          className="px-3.5 py-2 bg-slate-900 text-white rounded-xl text-xs font-bold hover:bg-slate-800 transition-colors cursor-pointer"
+                        >
+                          View {otherCat.mobileLabel}
+                        </button>
+                      ))}
+                    </div>
                   </div>
                 )}
 
